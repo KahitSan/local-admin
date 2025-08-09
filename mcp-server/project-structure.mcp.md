@@ -3,15 +3,15 @@
 This document reflects the **current folder & file structure** of the KahitSan project.
 It is AI-readable for context when creating, modifying, or removing components, layouts, pages, and related assets.
 
----
+```bash
 ├── ./
-├── mcp-docs/
 ├── tsconfig.node.json
 ├── index.html
 ├── tsconfig.app.json
 ├── mcp-server/
 │   ├── coworking-domain.mcp.md
 │   ├── kahitsan-server.ts
+│   ├── project-structure.mcp.md
 │   ├── design-system.mcp.md
 │   ├── templates/
 │   │   ├── hud-component.mcp.md
@@ -45,3 +45,4 @@ It is AI-readable for context when creating, modifying, or removing components, 
 │   ├── assets/
 │   │   ├── react.svg
 │   ├── pages/
+```
