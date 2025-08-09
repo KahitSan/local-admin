@@ -29,6 +29,7 @@
 /* Typography */
 --ks-font-family: 'Segoe UI', system-ui, sans-serif;
 --ks-font-digital: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+```
 
 ## Component Requirements
 
