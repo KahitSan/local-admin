@@ -1,0 +1,294 @@
+/* src/styles/design-system.css */
+
+/* ===================================
+   KAHITSAN FUTURISTIC HUD SYSTEM v2.0.0
+   CLI-Inspired Iron Man Design
+   =================================== */
+
+:root {
+  /* HUD Colors - Strong & Consistent */
+  --ks-hud-primary: #C9A961;
+  --ks-hud-primary-glow: #E5D4A1;
+  --ks-hud-secondary: #999999;
+  --ks-hud-green: #00FF00;
+  --ks-hud-red: #FF0000;
+  --ks-hud-orange: #FF6600;
+  --ks-hud-blue: #0080FF;
+  --ks-hud-purple: #8B5CF6;
+  
+  /* Background & Overlays */
+  --ks-bg-main: #0a0a0a;
+  --ks-bg-hud-panel: rgba(12, 12, 15, 0.85);
+  --ks-bg-glass: rgba(12, 12, 15, 0.8);
+  --ks-bg-glass-hover: rgba(12, 12, 15, 0.9);
+  
+  /* HUD Borders & Outlines */
+  --ks-border-hud: 1px solid rgba(201, 169, 97, 0.4);
+  --ks-border-hud-glow: 1px solid rgba(201, 169, 97, 0.8);
+  --ks-border-hud-secondary: 1px solid rgba(153, 153, 153, 0.6);
+  --ks-border-hud-thin: 1px solid rgba(201, 169, 97, 0.2);
+  
+  /* Typography */
+  --ks-font-family: 'Segoe UI', system-ui, sans-serif;
+  --ks-font-mono: 'Courier New', Monaco, monospace;
+  --ks-font-digital: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+  
+  /* Font Sizes */
+  --ks-font-size-xs: clamp(0.7rem, 1.5vw, 0.8rem);
+  --ks-font-size-sm: clamp(0.8rem, 2vw, 0.9rem);
+  --ks-font-size-base: clamp(0.9rem, 2.5vw, 1rem);
+  --ks-font-size-lg: clamp(1rem, 2.8vw, 1.125rem);
+  --ks-font-size-xl: clamp(1.1rem, 3vw, 1.25rem);
+  --ks-font-size-2xl: clamp(1.3rem, 3.5vw, 1.6rem);
+  --ks-font-size-3xl: clamp(1.6rem, 4vw, 2rem);
+  --ks-font-size-4xl: clamp(2rem, 5vw, 2.8rem);
+  
+  /* Spacing */
+  --ks-space-1: clamp(4px, 1vw, 6px);
+  --ks-space-2: clamp(8px, 1.5vw, 12px);
+  --ks-space-3: clamp(12px, 2vw, 16px);
+  --ks-space-4: clamp(16px, 3vw, 20px);
+  --ks-space-5: clamp(20px, 3vw, 24px);
+  --ks-space-6: clamp(24px, 4vw, 32px);
+  --ks-space-8: clamp(32px, 5vw, 48px);
+  --ks-space-10: clamp(40px, 6vw, 60px);
+  --ks-space-12: clamp(48px, 8vw, 80px);
+  
+  /* Transitions */
+  --ks-transition-hud: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Component Heights */
+  --ks-btn-height: 44px;
+  --ks-input-height: 44px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--ks-font-family);
+  background: var(--ks-bg-main);
+  color: #ffffff;
+  overflow-x: hidden;
+  position: relative;
+  line-height: 1.6;
+}
+
+/* Subtle Grid Background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(201, 169, 97, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201, 169, 97, 0.02) 1px, transparent 1px);
+  background-size: 20px 20px;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* ========================
+   BASE COMPONENT STYLES
+======================== */
+
+.hud-btn {
+  background: rgba(12, 12, 15, 0.8);
+  border: 2px solid rgba(201, 169, 97, 0.4);
+  border-left: 3px solid var(--ks-hud-primary);
+  color: var(--ks-hud-primary);
+  padding: var(--ks-space-3) var(--ks-space-6);
+  font-family: var(--ks-font-digital);
+  font-size: var(--ks-font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: var(--ks-transition-hud);
+  overflow: hidden;
+  min-height: var(--ks-btn-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  border: none;
+}
+
+.hud-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(201, 169, 97, 0.2), transparent);
+  transition: var(--ks-transition-hud);
+}
+
+.hud-btn:hover::before {
+  left: 100%;
+}
+
+.hud-btn:hover {
+  border-color: rgba(201, 169, 97, 0.8);
+  border-left-color: var(--ks-hud-primary-glow);
+  text-shadow: 0 0 8px var(--ks-hud-primary);
+  background: rgba(12, 12, 15, 0.9);
+}
+
+.hud-btn.primary {
+  background: rgba(201, 169, 97, 0.15);
+  border: 2px solid rgba(201, 169, 97, 0.6);
+}
+
+.hud-btn.success {
+  background: rgba(0, 255, 0, 0.1);
+  border: 2px solid rgba(0, 255, 0, 0.4);
+  border-left: 3px solid var(--ks-hud-green);
+  color: var(--ks-hud-green);
+}
+
+.hud-btn.danger {
+  background: rgba(255, 0, 0, 0.1);
+  border: 2px solid rgba(255, 0, 0, 0.4);
+  border-left: 3px solid var(--ks-hud-red);
+  color: var(--ks-hud-red);
+}
+
+.hud-btn.active {
+  background: rgba(201, 169, 97, 0.2);
+  border-color: var(--ks-hud-primary);
+  border-left-color: var(--ks-hud-primary-glow);
+}
+
+.hud-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hud-input {
+  background: var(--ks-bg-glass);
+  border: var(--ks-border-hud);
+  border-left: 2px solid var(--ks-hud-primary);
+  color: #ffffff;
+  padding: var(--ks-space-3);
+  font-family: var(--ks-font-digital);
+  font-size: var(--ks-font-size-base);
+  transition: var(--ks-transition-hud);
+  min-height: var(--ks-input-height);
+  backdrop-filter: blur(10px);
+  width: 100%;
+}
+
+.hud-input:focus {
+  outline: none;
+  border-color: var(--ks-hud-primary);
+  border-left-color: var(--ks-hud-primary-glow);
+}
+
+.hud-select {
+  width: 100%;
+  background: var(--ks-bg-glass);
+  border: var(--ks-border-hud);
+  border-left: 2px solid var(--ks-hud-primary);
+  color: #ffffff;
+  padding: var(--ks-space-3);
+  font-family: var(--ks-font-digital);
+  font-size: var(--ks-font-size-base);
+  transition: var(--ks-transition-hud);
+  min-height: var(--ks-input-height);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23C9A961' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--ks-space-3) center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  padding-right: var(--ks-space-8);
+}
+
+.hud-label {
+  display: block;
+  color: var(--ks-hud-secondary);
+  font-family: var(--ks-font-digital);
+  font-size: var(--ks-font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: var(--ks-space-2);
+}
+
+.status-badge {
+  padding: 4px 8px;
+  font-family: var(--ks-font-digital);
+  font-size: var(--ks-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 3px;
+}
+
+.status-badge.active {
+  background: rgba(0, 255, 0, 0.2);
+  color: var(--ks-hud-green);
+  border: 1px solid rgba(0, 255, 0, 0.4);
+}
+
+.status-badge.editing {
+  background: rgba(255, 102, 0, 0.2);
+  color: var(--ks-hud-orange);
+  border: 1px solid rgba(255, 102, 0, 0.4);
+}
+
+.status-badge.completed {
+  background: rgba(153, 153, 153, 0.2);
+  color: var(--ks-hud-secondary);
+  border: 1px solid rgba(153, 153, 153, 0.4);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: var(--ks-space-2);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--ks-transition-hud);
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: progress-shine 2s infinite;
+}
+
+@keyframes progress-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ========================
+   RESPONSIVE DESIGN
+======================== */
+
+@media (max-width: 768px) {
+  .hud-btn {
+    padding: var(--ks-space-2) var(--ks-space-4);
+    font-size: var(--ks-font-size-xs);
+  }
+}
