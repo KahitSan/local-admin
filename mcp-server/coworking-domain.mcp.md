@@ -1,5 +1,4 @@
 
-```md
 # KahitSan Coworking Space Domain Knowledge
 
 ## Business Context
@@ -33,3 +32,4 @@
 - "Sector" not "area" in UI labels
 - "Chamber" for call booths
 - Use "Initialize", "Protocol", "Matrix" for tech feel
+
