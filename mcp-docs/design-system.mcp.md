@@ -29,3 +29,16 @@
 /* Typography */
 --ks-font-family: 'Segoe UI', system-ui, sans-serif;
 --ks-font-digital: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+
+## Component Requirements
+
+* ALL interactive elements must use clip-path for angular edges
+* ALL headers must use --ks-font-digital and uppercase
+* ALL hover effects must include scan line animation
+* ALL cards must have left border accent (2px solid --ks-hud-primary)
+* ALL forms must use HUD styling with glass backgrounds
+
+## Responsive Design
+* Use clamp() for all font sizes and spacing
+* Mobile: Collapse to single column
+* Desktop: Multi-column grids with auto-fit
