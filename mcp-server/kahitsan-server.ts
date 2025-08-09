@@ -13,14 +13,15 @@ import {
 import fs from "fs";
 import path from "path";
 
-const DOCS_DIR = path.resolve(process.cwd(), "mcp-docs");
+// Fix: Use proper path resolution
+const DOCS_DIR = path.join(process.cwd(), "mcp-server");
 
 const UI_DIRS = {
-  base: { dir: path.resolve(process.cwd(), "src/ui/base"), category: "component-base" },
-  composite: { dir: path.resolve(process.cwd(), "src/ui/composite"), category: "component-composite" },
-  sections: { dir: path.resolve(process.cwd(), "src/ui/sections"), category: "component-section" },
-  layouts: { dir: path.resolve(process.cwd(), "src/ui/layouts"), category: "layout" },
-  pages: { dir: path.resolve(process.cwd(), "src/ui/pages"), category: "page" },
+  base: { dir: path.join(process.cwd(), "src/ui/base"), category: "component-base" },
+  composite: { dir: path.join(process.cwd(), "src/ui/composite"), category: "component-composite" },
+  sections: { dir: path.join(process.cwd(), "src/ui/sections"), category: "component-section" },
+  layouts: { dir: path.join(process.cwd(), "src/layouts"), category: "layout" },
+  pages: { dir: path.join(process.cwd(), "src/pages"), category: "page" },
 };
 
 interface KahitSanResource {
@@ -43,68 +44,117 @@ interface KahitSanResource {
 function collectKahitSanDocs(): KahitSanResource[] {
   const resources: KahitSanResource[] = [];
 
-  // Ensure docs directory exists
-  if (!fs.existsSync(DOCS_DIR)) {
-    console.error(`Creating MCP docs directory: ${DOCS_DIR}`);
-    fs.mkdirSync(DOCS_DIR, { recursive: true });
-
-    const basicDesignSystem = `# KahitSan HUD Design System
-...`;
-    fs.writeFileSync(path.join(DOCS_DIR, "design-system.mcp.md"), basicDesignSystem);
-    console.error("Created basic design-system.mcp.md");
-  }
-
+  // Fix: Better error handling and path resolution
   try {
+    // Ensure docs directory exists
+    if (!fs.existsSync(DOCS_DIR)) {
+      console.error(`Creating MCP docs directory: ${DOCS_DIR}`);
+      try {
+        fs.mkdirSync(DOCS_DIR, { recursive: true });
+        
+        const basicDesignSystem = `# KahitSan HUD Design System
+
+## Core Design Philosophy
+- **CLI-Inspired**: Terminal/command-line aesthetic with digital typography
+- **Iron Man HUD**: Semi-transparent panels, angular geometry, scanning animations
+- **Strong Usability**: High contrast, readable text, mobile-friendly
+- **Consistent Hierarchy**: Left border accents, digital fonts, structured layouts
+
+## Color System
+\`\`\`css
+--ks-hud-primary: #C9A961;        /* Main gold */
+--ks-hud-primary-glow: #E5D4A1;   /* Lighter gold */
+--ks-hud-secondary: #999999;      /* Gray */
+--ks-hud-green: #00FF00;          /* Success */
+--ks-hud-red: #FF0000;            /* Error */
+--ks-hud-orange: #FF6600;         /* Warning */
+--ks-hud-blue: #0080FF;           /* Info */
+\`\`\`
+`;
+        fs.writeFileSync(path.join(DOCS_DIR, "design-system.mcp.md"), basicDesignSystem);
+        console.error("Created basic design-system.mcp.md");
+      } catch (mkdirError) {
+        console.error("Failed to create docs directory:", mkdirError);
+        return resources; // Return empty array if we can't create the directory
+      }
+    }
+
     // Collect design system docs
     const designSystemFiles = [
       "design-system.mcp.md",
       "coworking-domain.mcp.md",
       "component-architecture.mcp.md",
+      "project-structure.mcp.md"
     ];
+    
     designSystemFiles.forEach((file) => {
-      const filePath = path.join(DOCS_DIR, file);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, "utf-8");
-        resources.push({
-          name: file.replace(".mcp.md", ""),
-          content,
-          category: "design-system",
-        });
+      try {
+        const filePath = path.join(DOCS_DIR, file);
+        if (fs.existsSync(filePath)) {
+          const content = fs.readFileSync(filePath, "utf-8");
+          resources.push({
+            name: file.replace(".mcp.md", ""),
+            content,
+            category: "design-system",
+          });
+        }
+      } catch (readError) {
+        console.error(`Failed to read file ${file}:`, readError);
       }
     });
 
     // Collect templates
     const templatesDir = path.join(DOCS_DIR, "templates");
     if (fs.existsSync(templatesDir)) {
-      fs.readdirSync(templatesDir).forEach((file) => {
-        if (file.endsWith(".mcp.md")) {
-          const content = fs.readFileSync(path.join(templatesDir, file), "utf-8");
-          resources.push({
-            name: `Template: ${file.replace(".mcp.md", "")}`,
-            content,
-            category: "template",
-          });
-        }
-      });
+      try {
+        fs.readdirSync(templatesDir).forEach((file) => {
+          if (file.endsWith(".mcp.md")) {
+            try {
+              const content = fs.readFileSync(path.join(templatesDir, file), "utf-8");
+              resources.push({
+                name: `Template: ${file.replace(".mcp.md", "")}`,
+                content,
+                category: "template",
+              });
+            } catch (readError) {
+              console.error(`Failed to read template ${file}:`, readError);
+            }
+          }
+        });
+      } catch (dirError) {
+        console.error("Failed to read templates directory:", dirError);
+      }
     }
 
     // Scan UI directories for component docs
-    Object.entries(UI_DIRS).forEach(([_, { dir, category }]) => {
-      if (!fs.existsSync(dir)) return;
-      fs.readdirSync(dir).forEach((item) => {
-        const itemPath = path.join(dir, item);
-        if (fs.statSync(itemPath).isDirectory()) {
-          const docsPath = path.join(itemPath, `${item}.docs.mcp.md`);
-          if (fs.existsSync(docsPath)) {
-            const content = fs.readFileSync(docsPath, "utf-8");
-            resources.push({
-              name: item,
-              content,
-              category,
-            });
-          }
+    Object.entries(UI_DIRS).forEach(([dirName, { dir, category }]) => {
+      try {
+        if (!fs.existsSync(dir)) {
+          console.error(`UI directory does not exist: ${dir}`);
+          return;
         }
-      });
+        
+        fs.readdirSync(dir).forEach((item) => {
+          try {
+            const itemPath = path.join(dir, item);
+            if (fs.statSync(itemPath).isDirectory()) {
+              const docsPath = path.join(itemPath, `${item}.docs.mcp.md`);
+              if (fs.existsSync(docsPath)) {
+                const content = fs.readFileSync(docsPath, "utf-8");
+                resources.push({
+                  name: item,
+                  content,
+                  category: category as any,
+                });
+              }
+            }
+          } catch (itemError) {
+            console.error(`Failed to process item ${item} in ${dir}:`, itemError);
+          }
+        });
+      } catch (dirError) {
+        console.error(`Failed to read UI directory ${dir}:`, dirError);
+      }
     });
   } catch (error) {
     console.error("Error collecting docs:", error);
@@ -121,27 +171,39 @@ function scanProjectFiles(rootDir: string) {
   const files: { path: string; name: string; ext: string; documented: boolean; imports: string[] }[] = [];
 
   function walk(dir: string) {
-    for (const entry of fs.readdirSync(dir)) {
-      const fullPath = path.join(dir, entry);
-      const stat = fs.statSync(fullPath);
+    try {
+      for (const entry of fs.readdirSync(dir)) {
+        const fullPath = path.join(dir, entry);
+        try {
+          const stat = fs.statSync(fullPath);
 
-      if (stat.isDirectory()) {
-        walk(fullPath);
-      } else {
-        const ext = path.extname(fullPath);
-        if ([".tsx", ".ts", ".jsx", ".js"].includes(ext)) {
-          const content = fs.readFileSync(fullPath, "utf-8");
-          const imports = [...content.matchAll(/import\s+.*?from\s+['"](.*?)['"]/g)].map(m => m[1]);
+          if (stat.isDirectory()) {
+            walk(fullPath);
+          } else {
+            const ext = path.extname(fullPath);
+            if ([".tsx", ".ts", ".jsx", ".js"].includes(ext)) {
+              try {
+                const content = fs.readFileSync(fullPath, "utf-8");
+                const imports = [...content.matchAll(/import\s+.*?from\s+['"](.*?)['"]/g)].map(m => m[1]);
 
-          files.push({
-            path: fullPath,
-            name: path.basename(fullPath, ext),
-            ext,
-            documented: fs.existsSync(fullPath.replace(ext, `.docs.mcp.md`)),
-            imports,
-          });
+                files.push({
+                  path: fullPath,
+                  name: path.basename(fullPath, ext),
+                  ext,
+                  documented: fs.existsSync(fullPath.replace(ext, `.docs.mcp.md`)),
+                  imports,
+                });
+              } catch (readError) {
+                console.error(`Failed to read file ${fullPath}:`, readError);
+              }
+            }
+          }
+        } catch (statError) {
+          console.error(`Failed to stat ${fullPath}:`, statError);
         }
       }
+    } catch (readDirError) {
+      console.error(`Failed to read directory ${dir}:`, readDirError);
     }
   }
 
@@ -182,39 +244,71 @@ class KahitSanMCPServer {
     );
 
     this.setupHandlers();
+    this.setupErrorHandling();
+  }
+
+  private setupErrorHandling() {
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception:', error);
+      // Don't exit, try to continue
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      // Don't exit, try to continue
+    });
+
+    // Handle SIGPIPE (broken pipe) errors gracefully
+    process.on('SIGPIPE', () => {
+      console.error('SIGPIPE received, client disconnected');
+    });
   }
 
   private setupHandlers() {
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      const docs = collectKahitSanDocs();
-      return {
-        resources: docs.map((doc) => ({
-          uri: `kahitsan://${doc.category}/${doc.name}`,
-          name: doc.name,
-          description: `KahitSan ${doc.category} documentation`,
-          mimeType: "text/markdown",
-        })),
-      };
+      try {
+        const docs = collectKahitSanDocs();
+        return {
+          resources: docs.map((doc) => ({
+            uri: `kahitsan://${doc.category}/${doc.name}`,
+            name: doc.name,
+            description: `KahitSan ${doc.category} documentation`,
+            mimeType: "text/markdown",
+          })),
+        };
+      } catch (error) {
+        console.error("Error in ListResources:", error);
+        throw new McpError(ErrorCode.InternalError, "Failed to list resources");
+      }
     });
 
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      const docs = collectKahitSanDocs();
-      const resourceName = request.params.uri.replace(/^kahitsan:\/\/[^\/]+\//, "");
-      const doc = docs.find((d) => d.name === resourceName);
+      try {
+        const docs = collectKahitSanDocs();
+        const resourceName = request.params.uri.replace(/^kahitsan:\/\/[^\/]+\//, "");
+        const doc = docs.find((d) => d.name === resourceName);
 
-      if (!doc) {
-        throw new McpError(ErrorCode.NotFound, `Resource not found: ${resourceName}`);
+        if (!doc) {
+          throw new McpError(ErrorCode.NotFound, `Resource not found: ${resourceName}`);
+        }
+
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: "text/markdown",
+              text: doc.content,
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        console.error("Error in ReadResource:", error);
+        throw new McpError(ErrorCode.InternalError, "Failed to read resource");
       }
-
-      return {
-        contents: [
-          {
-            uri: request.params.uri,
-            mimeType: "text/markdown",
-            text: doc.content,
-          },
-        ],
-      };
     });
 
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -281,53 +375,81 @@ class KahitSanMCPServer {
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
+      try {
+        const { name, arguments: args } = request.params;
 
-      if (name === "get-kahitsan-doc") {
-        const docs = collectKahitSanDocs();
-        let filtered = docs;
+        if (name === "get-kahitsan-doc") {
+          const docs = collectKahitSanDocs();
+          let filtered = docs;
 
-        if (args.category) {
-          filtered = docs.filter((d) => d.category === args.category);
+          if (args.category) {
+            filtered = docs.filter((d) => d.category === args.category);
+          }
+
+          const found = filtered.find((d) =>
+            d.name.toLowerCase().includes(args.name.toLowerCase())
+          );
+
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  found?.content ||
+                  `No KahitSan documentation found for "${args.name}". Available docs: ${docs
+                    .map((d) => d.name)
+                    .join(", ")}`,
+              },
+            ],
+          };
         }
 
-        const found = filtered.find((d) =>
-          d.name.toLowerCase().includes(args.name.toLowerCase())
-        );
+        if (name === "create-hud-component") {
+          const { componentName, componentType, variant } = args;
+          const template = `// Generated KahitSan HUD Component: ${componentName}
+import React from 'react';
+import { cn } from '@/utils/cn';
 
-        return {
-          content: [
-            {
-              type: "text",
-              text:
-                found?.content ||
-                `No KahitSan documentation found for "${args.name}". Available docs: ${docs
-                  .map((d) => d.name)
-                  .join(", ")}`,
-            },
-          ],
-        };
-      }
+interface ${componentName}Props {
+  className?: string;
+  children?: React.ReactNode;
+}
 
-      if (name === "create-hud-component") {
-        const { componentName } = args;
-        const template = `// Generated KahitSan HUD Component: ${componentName}
-...`;
-        return { content: [{ type: "text", text: template }] };
-      }
+export const ${componentName}: React.FC<${componentName}Props> = ({ 
+  className, 
+  children 
+}) => {
+  return (
+    <div className={cn(
+      "hud-${variant || 'component'}",
+      "bg-ks-bg-glass border border-ks-border-hud",
+      "border-l-2 border-l-ks-hud-primary",
+      "backdrop-blur-sm transition-all duration-300",
+      "hover:bg-ks-bg-glass-hover hover:border-l-ks-hud-primary-glow",
+      className
+    )}>
+      {children}
+    </div>
+  );
+};
 
-      if (name === "project-audit") {
-        const rootDir = path.resolve(process.cwd(), args.root || "src");
-        if (!fs.existsSync(rootDir)) {
-          throw new McpError(ErrorCode.InvalidParams, `Directory not found: ${rootDir}`);
+export default ${componentName};
+`;
+          return { content: [{ type: "text", text: template }] };
         }
 
-        const result = analyzeProject(rootDir);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `📊 Project Audit Results:
+        if (name === "project-audit") {
+          const rootDir = path.resolve(process.cwd(), args.root || "src");
+          if (!fs.existsSync(rootDir)) {
+            throw new McpError(ErrorCode.InvalidParams, `Directory not found: ${rootDir}`);
+          }
+
+          const result = analyzeProject(rootDir);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `📊 Project Audit Results:
 - Total Files: ${result.totalFiles}
 - Undocumented: ${result.undocumented.length}
 - Unused: ${result.unused.length}
@@ -342,21 +464,43 @@ ${result.unused.map(f => `• ${f.path}`).join("\n") || "✅ None"}
 Duplicate Components:
 ${result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") || "✅ None"}
 `
-            }
-          ]
-        };
-      }
+              }
+            ]
+          };
+        }
 
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+      } catch (error) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        console.error(`Error in tool ${request.params.name}:`, error);
+        throw new McpError(ErrorCode.InternalError, `Tool execution failed: ${error.message}`);
+      }
     });
   }
 
   async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error("KahitSan MCP server running on stdio");
+    try {
+      const transport = new StdioServerTransport();
+      
+      // Add error handling for transport
+      transport.onError = (error) => {
+        console.error("Transport error:", error);
+        // Don't exit, let the server handle it
+      };
+      
+      await this.server.connect(transport);
+      console.error("KahitSan MCP server running on stdio");
+    } catch (error) {
+      console.error("Failed to start MCP server:", error);
+      process.exit(1);
+    }
   }
 }
 
 const server = new KahitSanMCPServer();
-server.run().catch(console.error);
+server.run().catch((error) => {
+  console.error("Server runtime error:", error);
+  process.exit(1);
+});
