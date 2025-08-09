@@ -37,6 +37,9 @@ interface KahitSanResource {
     | "domain";
 }
 
+/**
+ * Collects all KahitSan documentation resources from the docs and UI dirs.
+ */
 function collectKahitSanDocs(): KahitSanResource[] {
   const resources: KahitSanResource[] = [];
 
@@ -45,7 +48,6 @@ function collectKahitSanDocs(): KahitSanResource[] {
     console.error(`Creating MCP docs directory: ${DOCS_DIR}`);
     fs.mkdirSync(DOCS_DIR, { recursive: true });
 
-    // Create a basic design system doc
     const basicDesignSystem = `# KahitSan HUD Design System
 ...`;
     fs.writeFileSync(path.join(DOCS_DIR, "design-system.mcp.md"), basicDesignSystem);
@@ -86,7 +88,7 @@ function collectKahitSanDocs(): KahitSanResource[] {
       });
     }
 
-    // Scan UI directories
+    // Scan UI directories for component docs
     Object.entries(UI_DIRS).forEach(([_, { dir, category }]) => {
       if (!fs.existsSync(dir)) return;
       fs.readdirSync(dir).forEach((item) => {
@@ -112,21 +114,71 @@ function collectKahitSanDocs(): KahitSanResource[] {
   return resources;
 }
 
+/**
+ * Recursively scans project files and returns info for analysis.
+ */
+function scanProjectFiles(rootDir: string) {
+  const files: { path: string; name: string; ext: string; documented: boolean; imports: string[] }[] = [];
+
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir)) {
+      const fullPath = path.join(dir, entry);
+      const stat = fs.statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        walk(fullPath);
+      } else {
+        const ext = path.extname(fullPath);
+        if ([".tsx", ".ts", ".jsx", ".js"].includes(ext)) {
+          const content = fs.readFileSync(fullPath, "utf-8");
+          const imports = [...content.matchAll(/import\s+.*?from\s+['"](.*?)['"]/g)].map(m => m[1]);
+
+          files.push({
+            path: fullPath,
+            name: path.basename(fullPath, ext),
+            ext,
+            documented: fs.existsSync(fullPath.replace(ext, `.docs.mcp.md`)),
+            imports,
+          });
+        }
+      }
+    }
+  }
+
+  walk(rootDir);
+  return files;
+}
+
+/**
+ * Runs analysis to detect unused, undocumented, and duplicate components.
+ */
+function analyzeProject(rootDir: string) {
+  const files = scanProjectFiles(rootDir);
+
+  const allImports = new Set(files.flatMap(f => f.imports.map(i => path.basename(i))));
+  const unused = files.filter(f => !allImports.has(f.name));
+  const undocumented = files.filter(f => !f.documented);
+
+  const nameGroups = files.reduce((acc, f) => {
+    acc[f.name] = acc[f.name] || [];
+    acc[f.name].push(f.path);
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  const duplicates = Object.entries(nameGroups)
+    .filter(([_, paths]) => paths.length > 1)
+    .map(([name, paths]) => ({ name, paths }));
+
+  return { unused, undocumented, duplicates, totalFiles: files.length };
+}
+
 class KahitSanMCPServer {
   private server: Server;
 
   constructor() {
     this.server = new Server(
-      {
-        name: "kahitsan-admin-mcp",
-        version: "2.0.0",
-      },
-      {
-        capabilities: {
-          resources: {},
-          tools: {},
-        },
-      }
+      { name: "kahitsan-admin-mcp", version: "2.1.0" },
+      { capabilities: { resources: {}, tools: {} } }
     );
 
     this.setupHandlers();
@@ -214,6 +266,16 @@ class KahitSanMCPServer {
               required: ["componentName", "componentType"],
             },
           },
+          {
+            name: "project-audit",
+            description: "Audit the project for unused, undocumented, and duplicate components.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                root: { type: "string", description: "Project root directory", default: "src" }
+              }
+            }
+          }
         ],
       };
     });
@@ -252,6 +314,37 @@ class KahitSanMCPServer {
         const template = `// Generated KahitSan HUD Component: ${componentName}
 ...`;
         return { content: [{ type: "text", text: template }] };
+      }
+
+      if (name === "project-audit") {
+        const rootDir = path.resolve(process.cwd(), args.root || "src");
+        if (!fs.existsSync(rootDir)) {
+          throw new McpError(ErrorCode.InvalidParams, `Directory not found: ${rootDir}`);
+        }
+
+        const result = analyzeProject(rootDir);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📊 Project Audit Results:
+- Total Files: ${result.totalFiles}
+- Undocumented: ${result.undocumented.length}
+- Unused: ${result.unused.length}
+- Duplicates: ${result.duplicates.length}
+
+Undocumented Files:
+${result.undocumented.map(f => `• ${f.path}`).join("\n") || "✅ None"}
+
+Unused Files:
+${result.unused.map(f => `• ${f.path}`).join("\n") || "✅ None"}
+
+Duplicate Components:
+${result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") || "✅ None"}
+`
+            }
+          ]
+        };
       }
 
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
