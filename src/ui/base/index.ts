@@ -1,9 +1,9 @@
-export { HudButton } from './HudButton/HudButton';
-export { HudInput } from './HudInput/HudInput';
+export { Button } from './Button/Button';
+export { Input } from './Input/Input';
 
-export { HudSelect } from './HudSelect/HudSelect';
+export { Select } from './Select/Select';
 export { HudLabel } from './HudLabel/HudLabel';
 export { StatusBadge } from './StatusBadge/StatusBadge';
 export { ProgressBar } from './ProgressBar/ProgressBar';
 export { FormGroup } from './FormGroup/FormGroup';
-export { HudCard } from './HudCard/HudCard';
+export { Card } from './Card/Card';

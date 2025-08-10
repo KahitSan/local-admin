@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigation } from '../../ui/sections/Navigation/Navigation';
+// import { Navigation } from '../../ui/sections/Navigation/Navigation';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -9,8 +9,8 @@ interface AdminLayoutProps {
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
-  activeSessionsCount,
-  onLogout
+//   activeSessionsCount,
+//   onLogout
 }) => {
   return (
     <div>

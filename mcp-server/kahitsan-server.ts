@@ -165,73 +165,94 @@ function collectKahitSanDocs(): KahitSanResource[] {
 }
 
 /**
- * Recursively scans project files and returns info for analysis.
+ * Reads and parses the project-structure.mcp.md file for audit information.
  */
-function scanProjectFiles(rootDir: string) {
-  const files: { path: string; name: string; ext: string; documented: boolean; imports: string[] }[] = [];
-
-  function walk(dir: string) {
-    try {
-      for (const entry of fs.readdirSync(dir)) {
-        const fullPath = path.join(dir, entry);
-        try {
-          const stat = fs.statSync(fullPath);
-
-          if (stat.isDirectory()) {
-            walk(fullPath);
-          } else {
-            const ext = path.extname(fullPath);
-            if ([".tsx", ".ts", ".jsx", ".js"].includes(ext)) {
-              try {
-                const content = fs.readFileSync(fullPath, "utf-8");
-                const imports = [...content.matchAll(/import\s+.*?from\s+['"](.*?)['"]/g)].map(m => m[1]);
-
-                files.push({
-                  path: fullPath,
-                  name: path.basename(fullPath, ext),
-                  ext,
-                  documented: fs.existsSync(fullPath.replace(ext, `.docs.mcp.md`)),
-                  imports,
-                });
-              } catch (readError) {
-                console.error(`Failed to read file ${fullPath}:`, readError);
-              }
-            }
-          }
-        } catch (statError) {
-          console.error(`Failed to stat ${fullPath}:`, statError);
-        }
-      }
-    } catch (readDirError) {
-      console.error(`Failed to read directory ${dir}:`, readDirError);
+function readProjectStructure() {
+  try {
+    const structureFile = path.join(DOCS_DIR, "project-structure.mcp.md");
+    
+    if (!fs.existsSync(structureFile)) {
+      throw new McpError(ErrorCode.NotFound, "project-structure.mcp.md not found in mcp-server directory");
     }
-  }
 
-  walk(rootDir);
-  return files;
+    const content = fs.readFileSync(structureFile, "utf-8");
+    return content;
+  } catch (error) {
+    if (error instanceof McpError) {
+      throw error;
+    }
+    throw new McpError(ErrorCode.InternalError, `Failed to read project structure: ${error.message}`);
+  }
 }
 
 /**
- * Runs analysis to detect unused, undocumented, and duplicate components.
+ * Parses project structure markdown content to extract audit information.
  */
-function analyzeProject(rootDir: string) {
-  const files = scanProjectFiles(rootDir);
+function parseProjectStructure(content: string) {
+  const lines = content.split('\n');
+  const result = {
+    totalFiles: 0,
+    undocumented: [] as string[],
+    unused: [] as string[],
+    duplicates: [] as { name: string; paths: string[] }[],
+    structure: content
+  };
 
-  const allImports = new Set(files.flatMap(f => f.imports.map(i => path.basename(i))));
-  const unused = files.filter(f => !allImports.has(f.name));
-  const undocumented = files.filter(f => !f.documented);
+  // Extract file counts and issues from markdown content
+  // This is a simple parser - you may want to enhance based on your markdown format
+  let inSection = '';
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    if (trimmed.includes('Total Files:') || trimmed.includes('total files')) {
+      const match = trimmed.match(/(\d+)/);
+      if (match) {
+        result.totalFiles = parseInt(match[1]);
+      }
+    }
+    
+    if (trimmed.toLowerCase().includes('undocumented')) {
+      inSection = 'undocumented';
+      continue;
+    }
+    
+    if (trimmed.toLowerCase().includes('unused')) {
+      inSection = 'unused';
+      continue;
+    }
+    
+    if (trimmed.toLowerCase().includes('duplicate')) {
+      inSection = 'duplicates';
+      continue;
+    }
+    
+    // Reset section on new heading
+    if (trimmed.startsWith('#')) {
+      inSection = '';
+    }
+    
+    // Parse list items
+    if (trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•')) {
+      const item = trimmed.substring(1).trim();
+      
+      if (inSection === 'undocumented') {
+        result.undocumented.push(item);
+      } else if (inSection === 'unused') {
+        result.unused.push(item);
+      } else if (inSection === 'duplicates') {
+        // Parse duplicate format like "ComponentName: path1, path2"
+        const colonIndex = item.indexOf(':');
+        if (colonIndex > -1) {
+          const name = item.substring(0, colonIndex).trim();
+          const paths = item.substring(colonIndex + 1).split(',').map(p => p.trim());
+          result.duplicates.push({ name, paths });
+        }
+      }
+    }
+  }
 
-  const nameGroups = files.reduce((acc, f) => {
-    acc[f.name] = acc[f.name] || [];
-    acc[f.name].push(f.path);
-    return acc;
-  }, {} as Record<string, string[]>);
-
-  const duplicates = Object.entries(nameGroups)
-    .filter(([_, paths]) => paths.length > 1)
-    .map(([name, paths]) => ({ name, paths }));
-
-  return { unused, undocumented, duplicates, totalFiles: files.length };
+  return result;
 }
 
 class KahitSanMCPServer {
@@ -362,11 +383,11 @@ class KahitSanMCPServer {
           },
           {
             name: "project-audit",
-            description: "Audit the project for unused, undocumented, and duplicate components.",
+            description: "Audit the project for unused, undocumented, and duplicate components by reading project-structure.mcp.md.",
             inputSchema: {
               type: "object",
               properties: {
-                root: { type: "string", description: "Project root directory", default: "src" }
+                root: { type: "string", description: "Ignored - reads from project-structure.mcp.md", default: "src" }
               }
             }
           }
@@ -439,30 +460,32 @@ export default ${componentName};
         }
 
         if (name === "project-audit") {
-          const rootDir = path.resolve(process.cwd(), args.root || "src");
-          if (!fs.existsSync(rootDir)) {
-            throw new McpError(ErrorCode.InvalidParams, `Directory not found: ${rootDir}`);
-          }
+          const structureContent = readProjectStructure();
+          const result = parseProjectStructure(structureContent);
 
-          const result = analyzeProject(rootDir);
           return {
             content: [
               {
                 type: "text",
-                text: `📊 Project Audit Results:
+                text: `📊 Project Audit Results (from project-structure.mcp.md):
+
+## Summary
 - Total Files: ${result.totalFiles}
 - Undocumented: ${result.undocumented.length}
 - Unused: ${result.unused.length}
 - Duplicates: ${result.duplicates.length}
 
-Undocumented Files:
-${result.undocumented.map(f => `• ${f.path}`).join("\n") || "✅ None"}
+## Undocumented Files
+${result.undocumented.length > 0 ? result.undocumented.map(f => `• ${f}`).join("\n") : "✅ None"}
 
-Unused Files:
-${result.unused.map(f => `• ${f.path}`).join("\n") || "✅ None"}
+## Unused Files
+${result.unused.length > 0 ? result.unused.map(f => `• ${f}`).join("\n") : "✅ None"}
 
-Duplicate Components:
-${result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") || "✅ None"}
+## Duplicate Components
+${result.duplicates.length > 0 ? result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") : "✅ None"}
+
+---
+*Audit data sourced from: mcp-server/project-structure.mcp.md*
 `
               }
             ]

@@ -1,3 +1,9 @@
+import React from 'react';
+
+// ============================================================================
+// CORE DOMAIN TYPES
+// ============================================================================
+
 export interface Client {
   id: number;
   name: string;
@@ -12,7 +18,7 @@ export interface Client {
   balance: number;
 }
 
-export type ClientStatus = 'active' | 'editing' | 'completed';
+export type ClientStatus = 'active' | 'editing' | 'completed' | 'booked' | 'urgent';
 
 export type SpaceType = 'Entrance' | 'Inner' | 'Call Booth' | 'Whole Area';
 
@@ -80,52 +86,69 @@ export interface ViewType {
   current: 'card' | 'table' | 'map';
 }
 
-// Component Props Types
-export interface HudButtonProps {
+// ============================================================================
+// UI COMPONENT TYPES
+// ============================================================================
+
+// Base Component Types
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'default' | 'primary' | 'success' | 'danger' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
-  variant?: 'default' | 'primary' | 'success' | 'danger';
-  active?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
   className?: string;
-  type?: 'button' | 'submit' | 'reset';
-  style?: React.CSSProperties;
 }
 
-export interface HudInputProps {
-  value: string | number;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: 'text' | 'number' | 'email';
-  min?: number;
-  max?: number;
+export interface CardProps {
+  children: React.ReactNode;
   className?: string;
-  disabled?: boolean;
-  style?: React.CSSProperties;
+  variant?: 'default' | 'glass' | 'panel';
+  accentColor?: string;
 }
 
-export interface HudSelectProps {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  className?: string;
+  containerClassName?: string;
+}
+
+export interface SelectOption {
   value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  label: string;
+}
+
+export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  options: SelectOption[];
+  error?: string;
   className?: string;
-  disabled?: boolean;
+  containerClassName?: string;
 }
 
 export interface StatusBadgeProps {
-  status: ClientStatus;
+  status: BadgeStatus;
   children: React.ReactNode;
-}
-
-export interface ProgressBarProps {
-  percentage: number;
-  color?: string;
+  icon?: React.ReactNode;
   className?: string;
 }
 
+export type BadgeStatus = 'active' | 'inactive' | 'warning' | 'error' | 'info';
+
+export interface ProgressBarProps {
+  value: number;
+  max?: number;
+  color?: string;
+  variant?: 'default' | 'timer' | 'status';
+  className?: string;
+  showValue?: boolean;
+  icon?: React.ReactNode;
+  label?: string;
+}
+
+// Composite Component Types
 export interface ClientCardProps {
   client: Client;
-  onUpdate: (clientId: number, field: keyof Client, value: unknown) => void;
+  onUpdate: (clientId: number, field: keyof Client, value: any) => void;
   onStart: (clientId: number) => void;
   onExtend: (clientId: number) => void;
   onComplete: (clientId: number) => void;
@@ -133,15 +156,324 @@ export interface ClientCardProps {
   onShowOnMap: (clientId: number) => void;
 }
 
+export interface PricingDisplayProps {
+  price: number;
+  payment?: number;
+  spaceType?: string;
+  duration?: number;
+}
+
+// Section Component Types
+export interface NavigationProps {
+  activeSessionsCount?: number;
+  onLogout?: () => void;
+}
+
+export interface LockControlProps {
+  onLockChange?: (isLocked: boolean) => void;
+}
+
+export interface SystemStatsProps {
+  updateInterval?: number;
+}
+
+export interface AccessCodesProps {
+  accessCodes: AccessCode[];
+  onRefresh?: () => void;
+}
+
+export interface QuickStatsProps {
+  activeClients: number;
+  occupancyRate: number;
+  todayRevenue: number;
+  totalSpaces: number;
+}
+
 export interface FloorPlanProps {
   seats: Seat[];
   areas: Area[];
+  clients: Client[];
   selectedClientId?: number | null;
   onSeatClick: (seat: Seat) => void;
+  onClientHighlight: (clientId: number) => void;
 }
 
 export interface CalendarProps {
   bookings: BookingsByDate;
-  currentMonth: Date;
-  onDayClick: (date: string) => void;
+  currentMonth?: Date;
+  onDayClick?: (date: string, bookings: Booking[]) => void;
 }
+
+export interface NotesSectionProps {
+  notes: string;
+  onNotesChange: (notes: string) => void;
+  onSave?: () => void;
+}
+
+// ============================================================================
+// HOOK TYPES
+// ============================================================================
+
+export interface UseClientsReturn {
+  clients: Client[];
+  addClient: () => void;
+  updateClient: (clientId: number, field: keyof Client, value: any) => void;
+  startSession: (clientId: number) => void;
+  extendSession: (clientId: number) => void;
+  completeSession: (clientId: number) => void;
+  deleteClient: (clientId: number) => void;
+  getActiveCount: () => number;
+}
+
+export type LocalStorageValue<T> = [T, (value: T) => void];
+
+// ============================================================================
+// UTILITY TYPES
+// ============================================================================
+
+export interface StatusConfig {
+  color: string;
+  icon: React.ComponentType<any>;
+  label: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+export interface StatItem {
+  label: string;
+  value: string;
+  percentage: number;
+  icon: React.ComponentType<any>;
+  color: string;
+  description?: string;
+}
+
+export interface QuickStat {
+  label: string;
+  value: string;
+  change?: string;
+  trend?: 'up' | 'down' | 'neutral';
+  icon: React.ComponentType<any>;
+  color: string;
+}
+
+export type UrgencyLevel = 'normal' | 'warning' | 'urgent';
+
+export type AnimationType = 'pulse' | 'flicker' | 'timerGlow' | 'progressPulse' | 'urgentBlink' | 'digitalFlicker';
+
+// ============================================================================
+// API & DATA TYPES
+// ============================================================================
+
+export interface ApiResponse<T> {
+  data: T;
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+export interface FilterOptions {
+  status?: ClientStatus[];
+  spaceType?: SpaceType[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  search?: string;
+}
+
+export interface SortOptions {
+  field: keyof Client;
+  direction: 'asc' | 'desc';
+}
+
+// ============================================================================
+// FORM TYPES
+// ============================================================================
+
+export interface ClientFormData {
+  name: string;
+  remarks: string;
+  duration: number;
+  spaceType: SpaceType;
+  payment: number;
+}
+
+export interface ClientFormErrors {
+  name?: string;
+  duration?: string;
+  spaceType?: string;
+  payment?: string;
+}
+
+export interface LoginFormData {
+  email: string;
+  password: string;
+  rememberMe: boolean;
+}
+
+export interface SettingsFormData {
+  autoLockTime: number;
+  notifications: boolean;
+  theme: 'dark' | 'light';
+  language: string;
+}
+
+// ============================================================================
+// EVENT TYPES
+// ============================================================================
+
+export interface ClientEvent {
+  type: 'created' | 'updated' | 'started' | 'completed' | 'deleted';
+  clientId: number;
+  timestamp: Date;
+  data?: Partial<Client>;
+}
+
+export interface SystemEvent {
+  type: 'lock_changed' | 'stats_updated' | 'error' | 'warning';
+  timestamp: Date;
+  data?: any;
+}
+
+// ============================================================================
+// CONFIGURATION TYPES
+// ============================================================================
+
+export interface AppConfig {
+  apiUrl: string;
+  wsUrl: string;
+  refreshInterval: number;
+  autoSave: boolean;
+  theme: {
+    primary: string;
+    secondary: string;
+    mode: 'dark' | 'light';
+  };
+}
+
+export interface FeatureFlags {
+  realTimeUpdates: boolean;
+  smartLock: boolean;
+  analytics: boolean;
+  floorPlan: boolean;
+  notifications: boolean;
+}
+
+// ============================================================================
+// NAVIGATION TYPES
+// ============================================================================
+
+export interface NavItem {
+  id: string;
+  icon: React.ComponentType<any>;
+  label: string;
+  path?: string;
+  badge?: string | number;
+  disabled?: boolean;
+}
+
+export interface BreadcrumbItem {
+  label: string;
+  path?: string;
+  current?: boolean;
+}
+
+// ============================================================================
+// THEME TYPES
+// ============================================================================
+
+export interface ThemeColors {
+  primary: string;
+  secondary: string;
+  success: string;
+  warning: string;
+  error: string;
+  info: string;
+  background: string;
+  surface: string;
+  text: string;
+}
+
+export interface ThemeConfig {
+  colors: ThemeColors;
+  fonts: {
+    primary: string;
+    mono: string;
+  };
+  spacing: {
+    [key: string]: string;
+  };
+  breakpoints: {
+    sm: string;
+    md: string;
+    lg: string;
+    xl: string;
+  };
+}
+
+// ============================================================================
+// LAYOUT TYPES
+// ============================================================================
+
+export interface LayoutProps {
+  children: React.ReactNode;
+  activeSessionsCount?: number;
+  onLogout?: () => void;
+}
+
+export interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items: NavItem[];
+}
+
+export interface HeaderProps {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}
+
+// ============================================================================
+// VALIDATION TYPES
+// ============================================================================
+
+export interface ValidationRule {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  pattern?: RegExp;
+  custom?: (value: any) => boolean | string;
+}
+
+export interface ValidationSchema {
+  [field: string]: ValidationRule;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: Record<string, string>;
+}
+
+// ============================================================================
+// EXPORT ALL TYPES
+// ============================================================================
+
+// Re-export React types that are commonly used
+export type { FC, ReactNode, ComponentType } from 'react';

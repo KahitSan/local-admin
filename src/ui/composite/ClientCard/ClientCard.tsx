@@ -1,219 +1,276 @@
 // src/ui/composite/ClientCard/ClientCard.tsx
-
 import React from 'react';
+import { 
+  Clock, 
+  MapPin, 
+  CreditCard, 
+  Plus, 
+  Check, 
+  Activity, 
+  Play, 
+  Square,
+  Settings
+} from 'lucide-react';
 import { type ClientCardProps } from '../../../types';
-import { HudButton, HudInput, HudSelect, HudLabel, StatusBadge, FormGroup } from '../../base';
-import { calculatePrice, formatTime, getTimeRemaining, getSpaceTypeOptions } from '../../../utils';
-import { PricingDisplay } from '../PricingDisplay/PricingDisplay';
+import { useSessionTimer } from '../../../hooks/useSessionTimer';
 
-export const ClientCard: React.FC<ClientCardProps> = ({
-  client,
-  onUpdate,
-  onStart,
-  onExtend,
-  onComplete,
-  onDelete,
-  onShowOnMap,
+export const ClientCard: React.FC<ClientCardProps> = ({ 
+  client, 
+  onExtend, 
+  onComplete, 
+  onShowOnMap
 }) => {
-  const price = calculatePrice(client.spaceType, client.duration);
-  const isActive = client.status === "active";
-  const timeRemaining = isActive ? getTimeRemaining(client.startTime, client.duration) : null;
+  const { timeRemaining, progress, isUrgent, sessionStatus } = useSessionTimer(client);
 
-  const handleExtend = () => {
-    const additionalHours = prompt("Additional hours:", "1");
-    if (additionalHours && !isNaN(Number(additionalHours))) {
-      onExtend(client.id);
+  const getStatusColor = () => {
+    switch (sessionStatus) {
+      case 'active': return 'var(--ks-hud-green)';
+      case 'urgent': return 'var(--ks-hud-red)';
+      case 'booked': return 'var(--ks-hud-blue)';
+      case 'completed': return 'var(--ks-hud-secondary)';
+      default: return 'var(--ks-hud-primary)';
     }
   };
 
+  const getStatusIcon = () => {
+    switch (sessionStatus) {
+      case 'active':
+      case 'urgent':
+        return <Activity className="w-3 h-3" />;
+      case 'booked':
+        return <Play className="w-3 h-3" />;
+      case 'completed':
+        return <Square className="w-3 h-3" />;
+      default:
+        return null;
+    }
+  };
+
+  const getPaymentStatusColor = () => {
+    if (client.balance > 0) return 'var(--ks-hud-orange)';
+    if (client.payment > 0 && client.balance === 0) return 'var(--ks-hud-green)';
+    return 'var(--ks-hud-secondary)';
+  };
+
+  const paymentStatusText = () => {
+    if (client.balance > 0) return 'PARTIAL';
+    if (client.payment > 0) return 'PAID';
+    return 'UNPAID';
+  };
+
   return (
-    <div className="client-card" style={{
-      background: 'var(--ks-bg-glass)',
-      border: '1px solid rgba(201, 169, 97, 0.3)',
-      borderLeft: '2px solid var(--ks-hud-primary)',
-      padding: 'var(--ks-space-6)',
-      backdropFilter: 'blur(10px)',
-      transition: 'var(--ks-transition-hud)',
-      overflow: 'hidden'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 'var(--ks-space-4)' }}>
-        <div>
-          <div style={{
-            fontSize: 'var(--ks-font-size-xl)',
-            color: 'var(--ks-hud-primary)',
-            fontFamily: 'var(--ks-font-digital)',
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
-            marginBottom: 'var(--ks-space-1)'
-          }}>
-            {client.name || 'New Client'}
+    // Make sure the card occupies the grid cell fully — no max-width forcing single-column
+    <div className="w-full h-full">
+      <div
+        className="hud-glass hud-clip-card w-full h-full flex flex-col"
+        style={{ '--accent-color': getStatusColor() } as React.CSSProperties}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium" style={{ color: 'var(--ks-hud-primary)' }}>
+              {client.name?.toUpperCase() || 'UNNAMED'}
+            </span>
           </div>
-          <div style={{
-            fontSize: 'var(--ks-font-size-sm)',
-            color: 'rgba(255, 255, 255, 0.6)',
-            fontFamily: 'var(--ks-font-digital)'
-          }}>
-            Code: {client.accessCode} | Seat: {client.seatId || 'Unassigned'}
+          <div 
+            className="text-xs px-2 py-1 rounded hud-mono flex items-center gap-1"
+            style={{
+              backgroundColor: `${getStatusColor()}20`,
+              color: getStatusColor(),
+              border: `1px solid ${getStatusColor()}40`
+            }}
+          >
+            {getStatusIcon()}
+            {sessionStatus.toUpperCase()}
           </div>
         </div>
-        <StatusBadge status={client.status}>
-          {client.status.toUpperCase()}
-        </StatusBadge>
-      </div>
-      
-      {client.status === "editing" ? (
-        <div style={{ display: 'grid', gap: 'var(--ks-space-4)' }}>
-          <FormGroup>
-            <HudLabel>Client Name</HudLabel>
-            <HudInput
-              value={client.name}
-              onChange={(value) => onUpdate(client.id, 'name', value)}
-              placeholder="Enter client name"
-            />
-          </FormGroup>
-          
-          <FormGroup>
-            <HudLabel>Remarks</HudLabel>
-            <HudInput
-              value={client.remarks}
-              onChange={(value) => onUpdate(client.id, 'remarks', value)}
-              placeholder="Optional remarks"
-            />
-          </FormGroup>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--ks-space-3)' }}>
-            <FormGroup>
-              <HudLabel>Duration (Hours)</HudLabel>
-              <HudInput
-                type="number"
-                value={client.duration}
-                onChange={(value) => onUpdate(client.id, 'duration', parseInt(value))}
-                min={1}
-                max={24}
-              />
-            </FormGroup>
-            
-            <FormGroup>
-              <HudLabel>Space Type</HudLabel>
-              <HudSelect
-                value={client.spaceType}
-                onChange={(value) => onUpdate(client.id, 'spaceType', value)}
-                options={getSpaceTypeOptions()}
-              />
-            </FormGroup>
-          </div>
-          
-          <PricingDisplay price={price} spaceType={client.spaceType} duration={client.duration} />
-          
-          <div style={{ display: 'flex', gap: 'var(--ks-space-3)' }}>
-            <HudButton
-              variant="success"
-              onClick={() => onStart(client.id)}
-              disabled={!client.name}
-              style={{ flex: 1 }}
-            >
-              Start Session
-            </HudButton>
-            <HudButton
-              variant="danger"
-              onClick={() => onDelete(client.id)}
-              style={{ flex: 1 }}
-            >
-              Delete
-            </HudButton>
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div style={{ marginBottom: 'var(--ks-space-4)' }}>
-            <div style={{ color: 'rgba(255, 255, 255, 0.8)', marginBottom: 'var(--ks-space-2)' }}>
-              <strong>Space:</strong> {client.spaceType} | <strong>Duration:</strong> {client.duration}h
+
+        {/* Content */}
+        <div className="p-4 space-y-4 flex-1 flex flex-col">
+          {/* Client & Access Code Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs mb-1" style={{ color: 'var(--ks-hud-secondary)' }}>
+                Client Type
+              </div>
+              <div className="text-sm font-medium" style={{ color: 'var(--ks-hud-text)' }}>
+                {client.spaceType}
+              </div>
             </div>
-            {client.remarks && (
-              <div style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 'var(--ks-font-size-sm)' }}>
-                {client.remarks}
+            <div className="text-right">
+              <div className="text-xs mb-1" style={{ color: 'var(--ks-hud-secondary)' }}>
+                Access Code
               </div>
-            )}
-            {client.seatId && (
-              <div style={{
-                color: 'var(--ks-hud-primary)',
-                fontFamily: 'var(--ks-font-digital)',
-                marginTop: 'var(--ks-space-2)'
-              }}>
-                Seat: {client.seatId}{' '}
-                <HudButton
-                  onClick={() => onShowOnMap(client.id)}
-                  style={{ padding: '2px 6px', minHeight: '20px', fontSize: '8px', marginLeft: '8px' }}
-                >
-                  Show on Map
-                </HudButton>
-              </div>
-            )}
-          </div>
-          
-          {isActive && timeRemaining && (
-            <>
-              <div style={{
-                textAlign: 'center',
-                fontFamily: 'var(--ks-font-digital)',
-                fontSize: 'var(--ks-font-size-2xl)',
-                color: 'var(--ks-hud-green)',
-                letterSpacing: '2px',
-                margin: 'var(--ks-space-3) 0'
-              }}>
-                {timeRemaining}
-              </div>
-              <div style={{
-                textAlign: 'center',
-                fontSize: 'var(--ks-font-size-sm)',
-                color: 'var(--ks-hud-secondary)',
-                marginBottom: 'var(--ks-space-4)'
-              }}>
-                Started: {formatTime(client.startTime)}
-              </div>
-            </>
-          )}
-          
-          {!isActive && (
-            <div style={{
-              textAlign: 'center',
-              fontSize: 'var(--ks-font-size-sm)',
-              color: 'var(--ks-hud-secondary)',
-              marginBottom: 'var(--ks-space-4)'
-            }}>
-              Completed: {formatTime(client.startTime)}
-            </div>
-          )}
-          
-          <PricingDisplay price={price} payment={client.payment} />
-          
-          <div style={{ display: 'flex', gap: 'var(--ks-space-3)' }}>
-            {isActive ? (
-              <>
-                <HudButton onClick={handleExtend} style={{ flex: 1 }}>
-                  + Extend
-                </HudButton>
-                <HudButton
-                  variant="success"
-                  onClick={() => onComplete(client.id)}
-                  style={{ flex: 1 }}
-                >
-                  Complete
-                </HudButton>
-              </>
-            ) : (
-              <HudButton
-                variant="danger"
-                onClick={() => onDelete(client.id)}
-                style={{ flex: 1 }}
+              <div 
+                className="text-lg hud-mono px-3 py-1 rounded border inline-block"
+                style={{
+                  color: 'var(--ks-hud-primary)',
+                  backgroundColor: 'rgba(201, 169, 97, 0.1)',
+                  borderColor: 'rgba(201, 169, 97, 0.3)'
+                }}
               >
-                Delete
-              </HudButton>
+                {client.accessCode}
+              </div>
+            </div>
+          </div>
+          
+          {client.remarks && (
+            <div className="text-xs opacity-70" style={{ color: 'var(--ks-hud-secondary)' }}>
+              <Settings className="inline-block w-3 h-3 mr-1" />
+              {client.remarks}
+            </div>
+          )}
+
+          {/* Progress Bar */}
+          <div>
+            <div className="relative h-8 bg-black/30 rounded border border-white/10 overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-1000 relative ${isUrgent ? 'animate-pulse-slow' : ''}`}
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: `${getStatusColor()}40`
+                }}
+              >
+                <div 
+                  className="absolute top-0 right-0 w-1 h-full animate-pulse"
+                  style={{ backgroundColor: getStatusColor() }}
+                />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-between px-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" style={{ color: getStatusColor() }} />
+                  <span className="text-sm hud-mono" style={{ color: getStatusColor() }}>
+                    {timeRemaining}
+                  </span>
+                </div>
+                <div className="text-xs hud-mono" style={{ color: 'var(--ks-hud-secondary)' }}>
+                  {Math.round(progress)}% done
+                </div>
+              </div>
+            </div>
+            {isUrgent && (
+              <div className="mt-2 text-xs text-center">
+                <span 
+                  className="px-2 py-1 rounded hud-mono animate-pulse"
+                  style={{
+                    backgroundColor: 'var(--ks-hud-red)20',
+                    color: 'var(--ks-hud-red)',
+                    border: '1px solid var(--ks-hud-red)40'
+                  }}
+                >
+                  ⚠️ SESSION ENDING SOON
+                </span>
+              </div>
             )}
           </div>
+
+          {/* Session & Space Info Grid */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="hud-panel p-3 rounded">
+              <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--ks-hud-secondary)' }}>
+                <Clock className="w-3 h-3" />
+                <span>Duration</span>
+              </div>
+              <div className="text-sm hud-mono" style={{ color: 'var(--ks-hud-text)' }}>
+                {client.duration} Hours
+              </div>
+            </div>
+            <button
+              onClick={() => onShowOnMap(client.id)}
+              className="hud-panel p-3 rounded transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--ks-hud-secondary)' }}>
+                <MapPin className="w-3 h-3" />
+                <span>Seat</span>
+              </div>
+              <div className="flex items-center justify-between text-sm hud-mono" style={{ color: 'var(--ks-hud-text)' }}>
+                <span>{client.seatId || '--'}</span>
+                <span className="text-xs opacity-50" style={{ color: 'var(--ks-hud-blue)' }}>
+                  View Map
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {/* Payment Status */}
+          <div 
+            className="p-3 rounded border"
+            style={{
+              backgroundColor: `${getPaymentStatusColor()}10`,
+              borderColor: `${getPaymentStatusColor()}40`
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4" style={{ color: getPaymentStatusColor() }} />
+                <span className="text-xs" style={{ color: getPaymentStatusColor() }}>
+                  Payment Status
+                </span>
+              </div>
+              <div className="text-sm hud-mono" style={{ color: getPaymentStatusColor() }}>
+                {paymentStatusText()}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span style={{ color: 'var(--ks-hud-secondary)' }}>Total: </span>
+                <span className="hud-mono" style={{ color: getPaymentStatusColor() }}>
+                  ₱{client.payment + client.balance}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: 'var(--ks-hud-secondary)' }}>Remaining: </span>
+                <span 
+                  className="hud-mono" 
+                  style={{ color: client.balance > 0 ? 'var(--ks-hud-orange)' : 'var(--ks-hud-green)' }}
+                >
+                  ₱{client.balance}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => onExtend(client.id)}
+              disabled={sessionStatus === 'completed'}
+              className="p-3 rounded border hud-scan-line transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: 'rgba(201, 169, 97, 0.1)',
+                borderColor: 'rgba(201, 169, 97, 0.4)',
+                color: 'var(--ks-hud-primary)'
+              }}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" />
+                <span className="text-sm">Extend</span>
+              </div>
+            </button>
+            <button
+              onClick={() => onComplete(client.id)}
+              disabled={sessionStatus === 'completed'}
+              className="hud-clip-button p-3 hud-scan-line transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: sessionStatus === 'completed' 
+                  ? 'rgba(138, 138, 138, 0.1)' 
+                  : 'rgba(255, 136, 51, 0.1)',
+                border: `1px solid ${sessionStatus === 'completed' 
+                  ? 'rgba(138, 138, 138, 0.4)' 
+                  : 'rgba(255, 136, 51, 0.4)'}`,
+                color: sessionStatus === 'completed' 
+                  ? 'var(--ks-hud-secondary)' 
+                  : 'var(--ks-hud-orange)'
+              }}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Check className="w-4 h-4" />
+                <span className="text-sm">Complete</span>
+              </div>
+            </button>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
-

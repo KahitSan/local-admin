@@ -1,45 +1,102 @@
-# KahitSan HUD Design System
+# KahitSan HUD Design System - Refined
 
 ## Core Philosophy
-- CLI-Inspired terminal aesthetic with Iron Man HUD elements
-- Angular geometry with clip-path polygons
-- Digital typography using monospace fonts
-- Semi-transparent glass panels with backdrop blur
-- Animated scan lines and hover effects
+- **Less is More**: Strategic use of HUD elements rather than overwhelming every component
+- **Information Hierarchy**: Clear visual hierarchy with subtle HUD accents
+- **Elegant Angular Geometry**: Minimal, purposeful clip-paths only on key elements
+- **Refined Typography**: Mix of clean sans-serif for readability and monospace for data
+- **Sophisticated Glass**: Subtle transparency with refined borders
 
 ## CSS Variables Structure
 ```css
-/* Primary HUD Colors */
---ks-hud-primary: #C9A961;        /* Main gold */
+/* Primary HUD Colors - Refined */
+--ks-hud-primary: #C9A961;        /* Main gold - more muted */
 --ks-hud-primary-glow: #E5D4A1;   /* Hover/glow state */
---ks-hud-secondary: #999999;      /* Secondary text */
+--ks-hud-secondary: #8A8A8A;      /* Secondary text - softer */
 
-/* Status Colors */
---ks-hud-green: #00FF00;          /* Success/online */
---ks-hud-red: #FF0000;            /* Error/danger */
---ks-hud-orange: #FF6600;         /* Warning/pending */
---ks-hud-blue: #0080FF;           /* Info/links */
+/* Status Colors - Less aggressive */
+--ks-hud-green: #00CC88;          /* Success/online - less harsh */
+--ks-hud-red: #FF4444;            /* Error/danger - softer red */
+--ks-hud-orange: #FF8833;         /* Warning/pending - warmer */
+--ks-hud-blue: #4A9EFF;           /* Info/links - friendlier blue */
 --ks-hud-purple: #8B5CF6;         /* System stats */
 
-/* Backgrounds */
+/* Backgrounds - More subtle */
 --ks-bg-main: #0a0a0a;
---ks-bg-glass: rgba(12, 12, 15, 0.8);
---ks-bg-glass-hover: rgba(12, 12, 15, 0.9);
+--ks-bg-glass: rgba(15, 15, 20, 0.6);      /* More transparent */
+--ks-bg-glass-hover: rgba(15, 15, 20, 0.8);
+--ks-bg-panel: rgba(20, 20, 25, 0.4);      /* Very subtle panels */
 
 /* Typography */
---ks-font-family: 'Segoe UI', system-ui, sans-serif;
---ks-font-digital: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+--ks-font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+--ks-font-digital: 'JetBrains Mono', 'Fira Code', 'Monaco', monospace;
 ```
 
-## Component Requirements
+## Design Principles
 
-* ALL interactive elements must use clip-path for angular edges
-* ALL headers must use --ks-font-digital and uppercase
-* ALL hover effects must include scan line animation
-* ALL cards must have left border accent (2px solid --ks-hud-primary)
-* ALL forms must use HUD styling with glass backgrounds
+### 1. Strategic Angular Geometry
+- **Primary Cards Only**: Use angular clip-paths only on main content cards
+- **Subtle Angles**: Small corner cuts (4px-8px) instead of aggressive angles
+- **Clean Buttons**: Regular rounded buttons with subtle borders, angular only for primary actions
+
+### 2. Typography Hierarchy
+- **Headers**: Clean sans-serif (Inter) for readability
+- **Data/Codes**: Monospace only for numerical data, codes, and technical info
+- **Body Text**: Clean sans-serif for better readability
+- **Digital Labels**: Monospace only for field labels that represent data types
+
+### 3. Glass Effects - Refined
+- **Subtle Transparency**: Lower opacity backgrounds (0.4-0.6)
+- **Minimal Blur**: Lighter backdrop blur (4px-8px)
+- **Clean Borders**: 1px borders with subtle glow only on hover
+
+### 4. Animation Guidelines
+- **Subtle Scan Lines**: Only on primary interactive elements
+- **Gentle Pulses**: Slower, more elegant pulse animations
+- **Micro-interactions**: Small scale transforms on hover (102%-105%)
+
+### 5. Color Application
+- **Gold Accents**: Primary gold only for key information and active states
+- **Status Colors**: Use sparingly, only for actual status indicators
+- **Muted Secondaries**: Softer grays for supporting text
+- **High Contrast**: Ensure text remains readable
+
+## Component Guidelines
+
+### Cards
+- Main container: Subtle angular clip-path with clean glass background
+- Content areas: Clean rectangular sections with minimal styling
+- Headers: Gold accent line on left edge only
+- Information density: Proper spacing, not cramped
+
+### Buttons
+- Primary: Angular clip-path with gold theme
+- Secondary: Clean rounded with subtle border
+- Tertiary: Text-only with hover effects
+- Hover: Subtle glow and slight scale increase
+
+### Typography
+- Headings: Clean, readable font with selective gold coloring
+- Labels: Monospace only for technical/data labels
+- Values: Monospace for numerical data, times, codes
+- Description text: Clean sans-serif
+
+### Status Indicators
+- Subtle colored dots for status
+- Clean progress bars with minimal styling
+- Status text in appropriate colors but readable
 
 ## Responsive Design
-* Use clamp() for all font sizes and spacing
-* Mobile: Collapse to single column
-* Desktop: Multi-column grids with auto-fit
+- Use clamp() for all font sizes and spacing
+- Mobile: Single column, larger touch targets
+- Desktop: Multi-column grids with proper gaps
+- Maintain readability at all screen sizes
+
+## What to Avoid
+- ❌ Angular clips on every element
+- ❌ All-caps text everywhere
+- ❌ Excessive glow effects
+- ❌ Over-bright neon colors
+- ❌ Too much visual noise
+- ❌ Poor readability for aesthetic
+- ❌ Cramped information layout

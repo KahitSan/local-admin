@@ -7,13 +7,13 @@ export const initialClients: Client[] = [
     name: "John Doe",
     remarks: "Regular customer",
     startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    duration: 8,
+    duration: 3,
     spaceType: "Inner",
     seatId: "I3",
     accessCode: "564162",
     status: "active",
     payment: 149,
-    balance: 0
+    balance: 0,
   },
   {
     id: 2,
