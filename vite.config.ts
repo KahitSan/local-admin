@@ -50,6 +50,7 @@ export default defineConfig({
   server: {
     host: true, // This allows the server to be exposed to the network
     port: 666,  // Specify the port directly here
+    allowedHosts: ["kahitsan.local"],
   }
 })
 
