@@ -73,7 +73,7 @@ export const SystemStats: React.FC<SystemStatsProps> = ({
         <div className="flex items-center gap-3 mb-6">
           <Cpu className="w-6 h-6" style={{ color: 'var(--ks-hud-purple)' }} />
           <h2 className="text-xl font-medium" style={{ color: 'var(--ks-hud-purple)' }}>
-            System Statistics
+            Server Statistics
           </h2>
         </div>
 
