@@ -12,6 +12,8 @@ import {
   sampleAccessCodes 
 } from './data/sampleData';
 
+import KAHITSAN_LOGO from './assets/logo.png';
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useClients, useLocalStorage, useTimer } from './hooks';
 
@@ -92,45 +94,44 @@ export default function App() {
       /> */}
       
       {/* Main Content */}
-      <main className="pt-16">
+      <main>
+
+        {/* Header Section */}
+        <div className="border-b p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src={KAHITSAN_LOGO} alt="KahitSan Management" className="h-10 mr-2" />
+          <span className="text-1xl " style={{ color: 'var(--ks-hud-primary)' }}>
+            Management
+          </span>
+        </div>
+          
+          {/* System Status */}
+          <div className="flex items-center gap-4">
+            <StatusBadge status="active">
+              <div className="w-2 h-2 rounded-full bg-current animate-pulse mr-1" />
+              System Online
+            </StatusBadge>
+            <StatusBadge status="info">
+              Real-time Updates
+            </StatusBadge>
+          </div>
+        </div>
+        
         <div className="mx-auto p-6 space-y-8 max-w-7xl">
           
-          {/* Header Section */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <h1 className="text-3xl font-medium mb-2" style={{ color: 'var(--ks-hud-primary)' }}>
-                KahitSan Admin Dashboard
-              </h1>
-              <p className="text-sm" style={{ color: 'var(--ks-hud-secondary)' }}>
-                Manage workspace sessions and monitor system status
-              </p>
-            </div>
-            
-            {/* System Status */}
-            <div className="flex items-center gap-4">
-              <StatusBadge status="active">
-                <div className="w-2 h-2 rounded-full bg-current animate-pulse mr-1" />
-                System Online
-              </StatusBadge>
-              <StatusBadge status="info">
-                Real-time Updates
-              </StatusBadge>
-            </div>
-          </div>
 
-          {/* Quick Stats */}
-          <QuickStats
-            activeClients={activeSessionsCount}
-            occupancyRate={occupancyRate}
-            todayRevenue={todayRevenue}
-            totalSpaces={seats.length}
-          />
 
           {/* System Controls Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <QuickStats
+              activeClients={activeSessionsCount}
+              occupancyRate={occupancyRate}
+              todayRevenue={todayRevenue}
+              totalSpaces={seats.length}
+            />
             <LockControl onLockChange={handleLockChange} />
-            <SystemStats updateInterval={5000} />
           </div>
+
 
           {/* Client Management Section */}
           <section>
@@ -299,11 +300,16 @@ export default function App() {
             )}
           </section>
 
-          {/* Access Codes Section */}
-          <AccessCodes 
-            accessCodes={sampleAccessCodes}
-            onRefresh={() => alert('Access codes refreshed!')}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+            <SystemStats updateInterval={5000} />
+
+            {/* Access Codes Section */}
+            <AccessCodes 
+              accessCodes={sampleAccessCodes}
+              onRefresh={() => alert('Access codes refreshed!')}
+            />
+          </div>
 
           {/* Additional Information */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -120,14 +120,14 @@ export const LockControl: React.FC<LockControlProps> = ({ onLockChange }) => {
   }, [lockTimeout]);
 
   return (
-    <Card variant="glass" accentColor="var(--ks-hud-primary)">
+    <Card variant="default" accentColor="var(--ks-hud-primary)">
       <div className="p-[clamp(1rem,3vw,1.5rem)]">
         {/* Header */}
         <div className="flex items-center gap-[clamp(0.5rem,2vw,1rem)] mb-[clamp(0.75rem,2vw,1rem)]">
           <Shield className="w-[clamp(1rem,4vw,1.5rem)] h-[clamp(1rem,4vw,1.5rem)] text-[var(--ks-hud-primary)]" />
-          <h2 className="font-medium text-[var(--ks-hud-primary)] text-[clamp(1.2rem,4vw,1.5rem)]">
-            Smart Access Control
-          </h2>
+          <span className="font-medium text-[var(--ks-hud-primary)] text-[clamp(1.2rem,4vw,1.5rem)]">
+            Door Lock Control
+          </span>
         </div>
         
         {/* Loading and Error states */}

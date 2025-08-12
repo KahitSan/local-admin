@@ -58,7 +58,7 @@ export function generateAccessCode(): string {
 /**
  * FIXME: 
  * 1. The computation is wrong, minutes / 60 is not hours but rather seconds
- * 2. The first parameter should also accept date time
+ * 2. The first parameter should also accept datetime
  */
 export const formatTime = (minutes: number, showHoursMinutes = false): string => {
   const hours = Math.floor(minutes / 60);

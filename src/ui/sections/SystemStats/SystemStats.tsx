@@ -67,7 +67,7 @@ export const SystemStats: React.FC<SystemStatsProps> = ({
   ];
 
   return (
-    <Card variant="glass" accentColor="var(--ks-hud-purple)">
+    <Card variant="panel" accentColor="var(--ks-hud-purple)">
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">

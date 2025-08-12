@@ -66,7 +66,7 @@ export const QuickStats: React.FC<QuickStatsProps> = ({
         const IconComponent = stat.icon;
         
         return (
-          <Card key={index} variant="glass">
+          <Card key={index} variant="default">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <IconComponent className="w-5 h-5" style={{ color: stat.color }} />

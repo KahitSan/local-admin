@@ -62,7 +62,7 @@ export const ClientCard: React.FC<ClientCardProps> = ({
     // Make sure the card occupies the grid cell fully — no max-width forcing single-column
     <div className="w-full h-full">
       <div
-        className="hud-glass hud-clip-card w-full h-full flex flex-col"
+        className="hud-glass hud-clip-card hud-interactive w-full h-full flex flex-col"
         style={{ '--accent-color': getStatusColor() } as React.CSSProperties}
       >
         {/* Header */}

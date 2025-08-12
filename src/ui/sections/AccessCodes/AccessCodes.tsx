@@ -49,7 +49,7 @@ export const AccessCodes: React.FC<AccessCodesProps> = ({
   };
 
   return (
-    <Card variant="glass" accentColor="var(--ks-hud-green)">
+    <Card variant="default" accentColor="var(--ks-hud-green)">
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -62,11 +62,14 @@ export const AccessCodes: React.FC<AccessCodesProps> = ({
           
           <div className="flex items-center gap-3">
             <span className="text-sm hud-mono" style={{ color: 'var(--ks-hud-secondary)' }}>
-              {activeCodes.length} Active
+              {activeCodes.length} Codes
             </span>
             <Button size="sm" onClick={handleRefresh}>
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              Show all
             </Button>
           </div>
         </div>
