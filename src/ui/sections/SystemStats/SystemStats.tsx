@@ -227,9 +227,12 @@ export const SystemStats: React.FC = () => { // websocketUrl prop removed
                       {stat.label}
                     </span>
                   </div>
-                  <span className="text-lg font-medium hud-mono" style={{ color: stat.color }}>
+                </div>
+
+                <div>
+                    <span className="text-lg font-medium hud-mono" style={{ color: stat.color }}>
                     {stat.value}
-                  </span>
+                    </span>
                 </div>
                 
                 <ProgressBar
