@@ -302,7 +302,7 @@ export default function App() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-            <SystemStats updateInterval={5000} />
+            <SystemStats />
 
             {/* Access Codes Section */}
             <AccessCodes 
