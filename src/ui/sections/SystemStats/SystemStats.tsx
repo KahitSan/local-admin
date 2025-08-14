@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Cpu, HardDrive, Wifi, Clock, Thermometer, MemoryStick } from 'lucide-react';
-import { Card, ProgressBar } from '../../base'; // Assuming these are in your base components
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Cpu, HardDrive, Wifi, Clock, Thermometer, MemoryStick, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Card, ProgressBar } from '../../base';
 
-// Define the shape of the system stats data received from the WebSocket
 interface SystemStatsData {
   cpuUsage: number;
   temperature: number;
-  memoryUsed: number; // Raw bytes
-  memoryTotal: number; // Raw bytes
-  uptime: number; // In seconds
-  diskUsed: number; // Raw bytes
-  diskTotal: number; // Raw bytes
-  networkRxBytes: number; // Raw bytes
-  networkTxBytes: number; // Raw bytes
+  memoryUsed: number;
+  memoryTotal: number;
+  uptime: number;
+  diskUsed: number;
+  diskTotal: number;
+  networkRxBytes: number;
+  networkTxBytes: number;
 }
 
-// Initial state for system stats
+type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'failed' | 'idle';
+
 const initialStats: SystemStatsData = {
   cpuUsage: 0,
   temperature: 0,
@@ -28,98 +28,176 @@ const initialStats: SystemStatsData = {
   networkTxBytes: 0,
 };
 
-// Component for displaying system statistics
-export const SystemStats: React.FC = () => { // websocketUrl prop removed
+export const SystemStats: React.FC = () => {
   const [stats, setStats] = useState<SystemStatsData>(initialStats);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [reconnectAttempts, setReconnectAttempts] = useState<number>(0);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
+  const [reconnectAttempt, setReconnectAttempt] = useState<number>(0);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [reconnectCountdown, setReconnectCountdown] = useState<number>(0);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Interval | null>(null);
+  
   const MAX_RECONNECT_ATTEMPTS = 5;
-  const RECONNECT_INTERVAL_MS = 3000; // 3 seconds
+  const WEBSOCKET_URL = import.meta.env.VITE_WS_HOST + '/system-info';
+  
+  // Exponential backoff for reconnection delays
+  const getReconnectDelay = (attempt: number): number => {
+    const baseDelay = 1000; // Start with 1 second
+    const maxDelay = 10000; // Max 10 seconds
+    return Math.min(baseDelay * Math.pow(1.5, attempt), maxDelay);
+  };
 
-  // Define the WebSocket URL internally
-  const WEBSOCKET_URL = import.meta.env.VITE_WS_HOST + '/system-info'; // Hardcoded WebSocket URL
+  const cleanup = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setReconnectCountdown(0);
+  }, []);
 
   const connectWebSocket = useCallback(() => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnect attempts reached. Not attempting to connect further.');
+    // Clear any existing connections/timeouts
+    cleanup();
+    
+    // Check if we've exceeded max attempts
+    if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      setConnectionState('failed');
+      setErrorMessage('Unable to connect to server after multiple attempts');
       return;
     }
 
-    console.log(`Attempting to connect to WebSocket: ${WEBSOCKET_URL} (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-    const ws = new WebSocket(WEBSOCKET_URL); // Use the internally defined URL
+    // Set appropriate connection state
+    setConnectionState(reconnectAttempt === 0 ? 'connecting' : 'reconnecting');
+    setErrorMessage('');
+    setReconnectCountdown(0);
 
-    ws.binaryType = 'arraybuffer'; // Crucial for receiving binary data
+    const ws = new WebSocket(WEBSOCKET_URL);
+    wsRef.current = ws;
+    ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
-      console.log('WebSocket connected!');
-      setIsConnected(true);
-      setReconnectAttempts(0); // Reset attempts on successful connection
+      setConnectionState('connected');
+      setReconnectAttempt(0);
+      setReconnectCountdown(0);
+      setErrorMessage('');
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
     };
 
     ws.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
-        // Decode the binary data based on the server's byte layout (68 bytes total)
         const buffer = event.data;
         const view = new DataView(buffer);
         let offset = 0;
 
-        const cpuUsage = view.getFloat64(offset, true); offset += 8;        // 8 bytes
-        const temperature = view.getFloat32(offset, true); offset += 4;      // 4 bytes
-        const memoryUsed = view.getFloat64(offset, true); offset += 8;       // 8 bytes
-        const memoryTotal = view.getFloat64(offset, true); offset += 8;      // 8 bytes
-        const uptime = view.getFloat64(offset, true); offset += 8;          // 8 bytes
-        const diskUsed = view.getFloat64(offset, true); offset += 8;        // 8 bytes
-        const diskTotal = view.getFloat64(offset, true); offset += 8;       // 8 bytes
-        const networkRxBytes = view.getFloat64(offset, true); offset += 8;   // 8 bytes
-        const networkTxBytes = view.getFloat64(offset, true); offset += 8;   // 8 bytes
+        const cpuUsage = view.getFloat64(offset, true); offset += 8;
+        const temperature = view.getFloat32(offset, true); offset += 4;
+        const memoryUsed = view.getFloat64(offset, true); offset += 8;
+        const memoryTotal = view.getFloat64(offset, true); offset += 8;
+        const uptime = view.getFloat64(offset, true); offset += 8;
+        const diskUsed = view.getFloat64(offset, true); offset += 8;
+        const diskTotal = view.getFloat64(offset, true); offset += 8;
+        const networkRxBytes = view.getFloat64(offset, true); offset += 8;
+        const networkTxBytes = view.getFloat64(offset, true); offset += 8;
 
-        setStats(prevStats => ({
-          ...prevStats,
+        setStats({
           cpuUsage: parseFloat(cpuUsage.toFixed(2)),
           temperature: parseFloat(temperature.toFixed(2)),
-          memoryUsed: memoryUsed,
-          memoryTotal: memoryTotal,
-          uptime: uptime,
-          diskUsed: diskUsed,
-          diskTotal: diskTotal,
-          networkRxBytes: networkRxBytes,
-          networkTxBytes: networkTxBytes,
-        }));
-      } else {
-        // Handle non-binary messages (e.g., error messages from server)
-        try {
-          const message = JSON.parse(event.data);
-          console.warn('Received non-binary message:', message);
-          // Potentially display server-side errors to the user
-        } catch (e) {
-          console.warn('Received unparseable non-binary message:', event.data);
-        }
+          memoryUsed,
+          memoryTotal,
+          uptime,
+          diskUsed,
+          diskTotal,
+          networkRxBytes,
+          networkTxBytes,
+        });
       }
     };
 
     ws.onclose = (event) => {
-      console.log(`WebSocket disconnected (Code: ${event.code}, Reason: ${event.reason})`);
-      setIsConnected(false);
-      setReconnectAttempts(prev => prev + 1);
-      setTimeout(connectWebSocket, RECONNECT_INTERVAL_MS); // Attempt to reconnect
+      wsRef.current = null;
+      
+      if (connectionState !== 'idle') {
+        const nextAttempt = reconnectAttempt + 1;
+        setReconnectAttempt(nextAttempt);
+        
+        if (nextAttempt < MAX_RECONNECT_ATTEMPTS) {
+          const delay = getReconnectDelay(nextAttempt);
+          setConnectionState('reconnecting');
+          
+          // Set up countdown
+          const countdownSeconds = Math.ceil(delay / 1000);
+          setReconnectCountdown(countdownSeconds);
+          
+          // Clear any existing countdown interval
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+          }
+          
+          // Start countdown interval
+          countdownIntervalRef.current = setInterval(() => {
+            setReconnectCountdown(prev => {
+              if (prev <= 1) {
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current);
+                  countdownIntervalRef.current = null;
+                }
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, delay);
+        } else {
+          setConnectionState('failed');
+          setErrorMessage('Connection failed. Please check if the server is running.');
+        }
+      }
     };
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      ws.close(); // Force close to trigger onclose and reconnect logic
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
+  }, [reconnectAttempt, connectionState, cleanup]);
 
-    // Clean up WebSocket connection on component unmount
-    return () => {
-      ws.close();
-    };
-  }, [reconnectAttempts]); // Re-run effect if reconnectAttempts changes
-
-  useEffect(() => {
-    connectWebSocket(); // Initial connection attempt when component mounts
+  const handleManualRetry = useCallback(() => {
+    setReconnectAttempt(0);
+    setReconnectCountdown(0);
+    setConnectionState('connecting');
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    connectWebSocket();
   }, [connectWebSocket]);
 
-  // Helper to format uptime from seconds to readable string
+  useEffect(() => {
+    connectWebSocket();
+    
+    return () => {
+      setConnectionState('idle');
+      cleanup();
+    };
+  }, []);
+
   const formatUptime = (seconds: number): string => {
     const d = Math.floor(seconds / (3600 * 24));
     const h = Math.floor((seconds % (3600 * 24)) / 3600);
@@ -130,12 +208,11 @@ export const SystemStats: React.FC = () => { // websocketUrl prop removed
     if (d > 0) parts.push(`${d}d`);
     if (h > 0) parts.push(`${h}h`);
     if (m > 0) parts.push(`${m}m`);
-    parts.push(`${s}s`); // Always show seconds for granularity
+    parts.push(`${s}s`);
 
     return parts.join(' ');
   };
 
-  // Helper to convert bytes to a human-readable format (Bytes, KB, MB, GB, TB)
   const formatBytes = (bytes: number, decimals = 2): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -163,8 +240,7 @@ export const SystemStats: React.FC = () => { // websocketUrl prop removed
     {
       label: 'Temperature',
       value: `${stats.temperature}°C`,
-      // Ensure percentage is not negative if temp is below 30, and caps at 100
-      percentage: Math.max(0, Math.min(100, ((stats.temperature - 30) / 50) * 100)), 
+      percentage: Math.max(0, Math.min(100, ((stats.temperature - 30) / 50) * 100)),
       icon: Thermometer,
       color: stats.temperature > 75 ? 'var(--ks-hud-red)' : stats.temperature > 60 ? 'var(--ks-hud-orange)' : 'var(--ks-hud-green)'
     },
@@ -177,74 +253,144 @@ export const SystemStats: React.FC = () => { // websocketUrl prop removed
     },
     {
       label: 'Network I/O',
-      // Displaying combined received and transmitted bytes
       value: `${formatBytes(stats.networkRxBytes + stats.networkTxBytes)}`,
-      // Percentage against an arbitrary max (e.g., 100 MB/s total throughput)
-      // Ensure percentage is not negative or above 100
-      percentage: Math.max(0, Math.min(100, ((stats.networkRxBytes + stats.networkTxBytes) / (100 * 1024 * 1024)) * 100)), 
+      percentage: Math.max(0, Math.min(100, ((stats.networkRxBytes + stats.networkTxBytes) / (100 * 1024 * 1024)) * 100)),
       icon: Wifi,
       color: 'var(--ks-hud-primary)'
     },
     {
       label: 'Uptime',
       value: formatUptime(stats.uptime),
-      percentage: 100, // Uptime percentage is always 100% of 'running'
+      percentage: 100,
       icon: Clock,
       color: 'var(--ks-hud-green)'
     }
   ];
 
+  // Connection status indicator component
+  const ConnectionStatus = () => {
+    if (connectionState === 'connected') {
+      return (
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ks-hud-green)' }}>
+          <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--ks-hud-green)' }} />
+          <span>Connected</span>
+        </div>
+      );
+    }
+    
+    if (connectionState === 'connecting') {
+      return (
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ks-hud-orange)' }}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Connecting...</span>
+        </div>
+      );
+    }
+    
+    if (connectionState === 'reconnecting') {
+      return (
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ks-hud-orange)' }}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>
+            Reconnecting ({reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS})
+            {reconnectCountdown > 0 && ` in ${reconnectCountdown}s`}
+          </span>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
   return (
     <Card variant="panel" accentColor="var(--ks-hud-purple)">
       <div className="p-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Cpu className="w-6 h-6" style={{ color: 'var(--ks-hud-purple)' }} />
-          <h2 className="text-xl font-medium" style={{ color: 'var(--ks-hud-purple)' }}>
-            Server Statistics
-          </h2>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Cpu className="w-6 h-6" style={{ color: 'var(--ks-hud-purple)' }} />
+            <h2 className="text-xl font-medium" style={{ color: 'var(--ks-hud-purple)' }}>
+              Server Statistics
+            </h2>
+          </div>
+          <ConnectionStatus />
         </div>
 
-        {!isConnected && (
-          <div className="text-center text-red-500 mb-4">
-            Connecting to server... (Attempt {reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})
-            <br />
-            Ensure server is running and WebSocket URL is correct: <code>{WEBSOCKET_URL}</code>
+        {/* Connection Error State */}
+        {connectionState === 'failed' && (
+          <div className="hud-panel p-6 mb-6 text-center" style={{ borderColor: 'var(--ks-hud-red)' }}>
+            <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--ks-hud-red)' }} />
+            <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--ks-hud-red)' }}>
+              Connection Failed
+            </h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--ks-hud-secondary)' }}>
+              {errorMessage}
+            </p>
+            <button
+              onClick={handleManualRetry}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg hud-button"
+              style={{ 
+                backgroundColor: 'var(--ks-hud-purple)',
+                color: 'var(--ks-hud-background)'
+              }}
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry Connection
+            </button>
           </div>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {statItems.map((stat, index) => {
-            const IconComponent = stat.icon;
-            
-            return (
-              <div key={index} className="hud-panel p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <IconComponent className="w-4 h-4" style={{ color: stat.color }} />
-                    <span className="text-sm" style={{ color: 'var(--ks-hud-secondary)' }}>
-                      {stat.label}
+        {/* Connecting/Reconnecting State */}
+        {(connectionState === 'connecting' || connectionState === 'reconnecting') && (
+          <div className="hud-panel p-8 text-center">
+            <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" style={{ color: 'var(--ks-hud-orange)' }} />
+            <p className="text-sm mb-2" style={{ color: 'var(--ks-hud-secondary)' }}>
+              {connectionState === 'connecting' 
+                ? 'Establishing connection to server...' 
+                : `Reconnecting to server (Attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}
+            </p>
+            {reconnectCountdown > 0 && (
+              <p className="text-lg font-medium hud-mono" style={{ color: 'var(--ks-hud-orange)' }}>
+                {reconnectCountdown}s
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Stats Grid - Only show when connected */}
+        {connectionState === 'connected' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {statItems.map((stat, index) => {
+              const IconComponent = stat.icon;
+              
+              return (
+                <div key={index} className="hud-panel p-4 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <IconComponent className="w-4 h-4" style={{ color: stat.color }} />
+                      <span className="text-sm" style={{ color: 'var(--ks-hud-secondary)' }}>
+                        {stat.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-lg font-medium hud-mono" style={{ color: stat.color }}>
+                      {stat.value}
                     </span>
                   </div>
+                  
+                  <ProgressBar
+                    value={stat.percentage}
+                    max={100}
+                    color={stat.color}
+                    variant="default"
+                  />
                 </div>
-
-                <div>
-                    <span className="text-lg font-medium hud-mono" style={{ color: stat.color }}>
-                    {stat.value}
-                    </span>
-                </div>
-                
-                <ProgressBar
-                  value={stat.percentage}
-                  max={100}
-                  color={stat.color}
-                  variant="default"
-                />
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Card>
   );
