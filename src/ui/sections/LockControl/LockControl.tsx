@@ -40,8 +40,14 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
   const reconnectAttemptsRef = useRef(0);
   const commandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLockStateRef = useRef<boolean | null>(null);
-  const stateUpdateBufferRef = useRef<Partial<typeof state> | null>(null);
-  const stateUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const optimisticStateRef = useRef<{ value: boolean; timestamp: number } | null>(null);
+  const statusDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const currentStateRef = useRef(state); // Keep track of current state in ref
+  
+  // Update ref whenever state changes
+  useEffect(() => {
+    currentStateRef.current = state;
+  }, [state]);
 
   const autoLockOptions = useMemo(() => [
     { label: 'Never', value: 0 },
@@ -51,67 +57,15 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
     { label: '1 minute', value: 60 },
   ], []);
 
-  // Batch state updates to prevent flickering (immediate for critical updates)
-  const updateState = useCallback((updates: Partial<typeof state>, immediate = false) => {
-    if (immediate) {
-      // Apply immediately for critical updates like initial connection
-      setState(prev => ({
-        ...prev,
-        ...updates
-      }));
-      return;
-    }
-
-    // Clear any pending update
-    if (stateUpdateTimeoutRef.current) {
-      clearTimeout(stateUpdateTimeoutRef.current);
-    }
-
-    // Merge updates into buffer
-    stateUpdateBufferRef.current = {
-      ...stateUpdateBufferRef.current,
+  // All state updates are now immediate for instant UI response
+  const updateState = useCallback((updates: Partial<typeof state>) => {
+    setState(prev => ({
+      ...prev,
       ...updates
-    };
-
-    // Apply updates after a short delay to batch multiple changes
-    stateUpdateTimeoutRef.current = setTimeout(() => {
-      if (stateUpdateBufferRef.current) {
-        setState(prev => ({
-          ...prev,
-          ...stateUpdateBufferRef.current!
-        }));
-        stateUpdateBufferRef.current = null;
-      }
-    }, 10);
+    }));
   }, []);
 
-  // Send one-push command via WebSocket
-  const sendOnePushCommand = useCallback(() => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      updateState({ error: 'Not connected to device' });
-      return;
-    }
-    
-    updateState({ isExecuting: true, error: null });
 
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'command',
-        autoLockSeconds: autoLockTime,
-      })
-    );
-
-    if (commandTimeoutRef.current) {
-      clearTimeout(commandTimeoutRef.current);
-    }
-    
-    commandTimeoutRef.current = setTimeout(() => {
-      updateState({ 
-        isExecuting: false, 
-        error: 'Command timeout - please try again' 
-      });
-    }, 5000);
-  }, [autoLockTime, updateState]);
 
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {
@@ -125,20 +79,77 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
             const incomingTime = typeof data.autoLockTime === 'number' ? data.autoLockTime : 0;
 
             if (incomingLocked !== undefined && incomingLocked !== null) {
-              // Check if this is initial state or actual change
+              // Check if we have an optimistic update in progress
+              const hasOptimisticUpdate = optimisticStateRef.current !== null;
+              const optimisticAge = hasOptimisticUpdate 
+                ? Date.now() - optimisticStateRef.current!.timestamp 
+                : 0;
+              
+              // If we have a recent optimistic update (less than 500ms old)
+              // and the incoming state matches our optimistic state, just confirm it
+              if (hasOptimisticUpdate && optimisticAge < 500 && 
+                  incomingLocked === optimisticStateRef.current!.value) {
+                // Server confirmed our optimistic update
+                optimisticStateRef.current = null;
+                lastLockStateRef.current = incomingLocked;
+                
+                // Update without flickering
+                updateState({
+                  deviceAutoLockEnabled: incomingEnabled,
+                  deviceAutoLockTime: incomingTime,
+                  lastUpdate: new Date(),
+                  isLoading: false,
+                  error: null
+                });
+                
+                // Notify parent of confirmed change
+                if (onLockChange) {
+                  onLockChange(incomingLocked);
+                }
+                break;
+              }
+              
+              // If we have an optimistic update but server disagrees, debounce the revert
+              if (hasOptimisticUpdate && incomingLocked !== optimisticStateRef.current!.value) {
+                // Clear any pending status debounce
+                if (statusDebounceRef.current) {
+                  clearTimeout(statusDebounceRef.current);
+                }
+                
+                // Wait a bit before reverting to prevent flicker
+                statusDebounceRef.current = setTimeout(() => {
+                  // Only revert if the optimistic state is still active
+                  if (optimisticStateRef.current) {
+                    optimisticStateRef.current = null;
+                    lastLockStateRef.current = incomingLocked;
+                    
+                    updateState({
+                      isLocked: incomingLocked,
+                      deviceAutoLockEnabled: incomingEnabled,
+                      deviceAutoLockTime: incomingTime,
+                      lastUpdate: new Date(),
+                      isLoading: false,
+                      error: null
+                    });
+                    
+                    if (onLockChange) {
+                      onLockChange(incomingLocked);
+                    }
+                  }
+                }, 300); // Wait 300ms to debounce rapid changes
+                break;
+              }
+              
+              // Normal status update (no optimistic state)
               const isInitialState = lastLockStateRef.current === null;
               const hasStateChanged = lastLockStateRef.current !== incomingLocked;
               
-              // Always update the ref to track current state
               lastLockStateRef.current = incomingLocked;
               
-              // Notify parent on actual change (not initial state)
               if (!isInitialState && hasStateChanged && onLockChange) {
                 onLockChange(incomingLocked);
               }
 
-              // Always update UI state to stay in sync with device
-              // Use immediate update for initial state or state changes
               updateState({
                 isLocked: incomingLocked,
                 deviceAutoLockEnabled: incomingEnabled,
@@ -146,13 +157,13 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
                 lastUpdate: new Date(),
                 isLoading: false,
                 error: null
-              }, isInitialState || hasStateChanged);
+              });
             }
           } else {
             updateState({
               error: data.error || 'Device status unavailable',
               isLoading: false
-            }, true);
+            });
           }
           break;
         }
@@ -167,6 +178,13 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
             isExecuting: false,
             error: data.success ? null : (data.error || 'Failed to execute command')
           });
+          
+          // Clear optimistic state on command result
+          if (!data.success) {
+            // If command failed, we might need to revert the optimistic update
+            // The next status message will handle this
+            optimisticStateRef.current = null;
+          }
           break;
       }
     } catch (err) {
@@ -196,7 +214,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
         updateState({ 
           wsConnected: true, 
           error: null 
-        }, true); // Immediate update for connection status
+        });
         reconnectAttemptsRef.current = 0;
       };
 
@@ -206,7 +224,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
         updateState({ 
           wsConnected: false, 
           error: 'Connection error' 
-        }, true); // Immediate update for connection errors
+        });
       };
 
       ws.onclose = () => {
@@ -220,7 +238,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
         updateState({ 
           wsConnected: false, 
           isExecuting: false 
-        }, true); // Immediate update for connection close
+        });
 
         const attempts = reconnectAttemptsRef.current;
         if (attempts < 5) {
@@ -232,7 +250,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
         } else {
           updateState({ 
             error: 'Unable to maintain connection. Please refresh the page.' 
-          }, true);
+          });
         }
       };
     } catch (err) {
@@ -249,15 +267,56 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
     return () => {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
-      if (stateUpdateTimeoutRef.current) clearTimeout(stateUpdateTimeoutRef.current);
+      if (statusDebounceRef.current) clearTimeout(statusDebounceRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, [connectWebSocket]);
 
   const handleLockToggle = useCallback(() => {
-    if (!state.wsConnected || state.isExecuting) return;
-    sendOnePushCommand();
-  }, [state.wsConnected, state.isExecuting, sendOnePushCommand]);
+    const current = currentStateRef.current;
+    if (!current.wsConnected || current.isExecuting || current.isLocked === null) return;
+    
+    // Immediately flip the state in UI - don't wait for anything
+    const newLockState = !current.isLocked;
+    
+    // Store optimistic state
+    optimisticStateRef.current = {
+      value: newLockState,
+      timestamp: Date.now()
+    };
+    
+    // IMMEDIATELY update UI - synchronous state update
+    setState(prev => ({
+      ...prev,
+      isLocked: newLockState,
+      isExecuting: true,
+      error: null,
+      lastUpdate: new Date()
+    }));
+
+    // Then send the command to the server
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'command',
+          autoLockSeconds: autoLockTime,
+        })
+      );
+
+      if (commandTimeoutRef.current) {
+        clearTimeout(commandTimeoutRef.current);
+      }
+      
+      commandTimeoutRef.current = setTimeout(() => {
+        setState(prev => ({ 
+          ...prev,
+          isExecuting: false, 
+          error: 'Command timeout - please try again' 
+        }));
+        optimisticStateRef.current = null;
+      }, 5000);
+    }
+  }, [autoLockTime]);
 
   const handleAutoLockChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setAutoLockTime(Number(e.target.value));
