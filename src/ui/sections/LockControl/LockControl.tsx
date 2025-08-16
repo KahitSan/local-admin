@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Lock, Unlock, Clock, Shield, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import { Lock, Unlock, Clock, Shield, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { Card } from '../../base';
 
 interface LockControlProps {
@@ -31,6 +31,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
     error: null as string | null,
     wsConnected: false,
     lastUpdate: null as Date | null,
+    connectionFailed: false,
   });
 
   const [autoLockTime, setAutoLockTime] = useState(5);
@@ -213,7 +214,8 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
       ws.onopen = () => {
         updateState({ 
           wsConnected: true, 
-          error: null 
+          error: null,
+          connectionFailed: false 
         });
         reconnectAttemptsRef.current = 0;
       };
@@ -223,7 +225,7 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
       ws.onerror = () => {
         updateState({ 
           wsConnected: false, 
-          error: 'Connection error' 
+          error: 'Connection error'
         });
       };
 
@@ -235,21 +237,27 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
           commandTimeoutRef.current = null;
         }
         
-        updateState({ 
-          wsConnected: false, 
-          isExecuting: false 
-        });
-
         const attempts = reconnectAttemptsRef.current;
+        
         if (attempts < 5) {
+          // Still trying to reconnect automatically
+          updateState({ 
+            wsConnected: false, 
+            isExecuting: false 
+          });
+          
           const delay = Math.min(1000 * Math.pow(2, attempts), 10000);
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current++;
             connectWebSocket();
           }, delay);
         } else {
+          // Failed after 5 attempts - show retry button
           updateState({ 
-            error: 'Unable to maintain connection. Please refresh the page.' 
+            wsConnected: false,
+            isExecuting: false,
+            connectionFailed: true,
+            error: null
           });
         }
       };
@@ -322,6 +330,24 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
     setAutoLockTime(Number(e.target.value));
   }, []);
 
+  const handleManualRetry = useCallback(() => {
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
+    // Reset connection state and retry
+    reconnectAttemptsRef.current = 0;
+    updateState({
+      connectionFailed: false,
+      error: null,
+      isLoading: true,
+      isLocked: null // Reset lock state when retrying
+    });
+    connectWebSocket();
+  }, [connectWebSocket]);
+
   const formatLastUpdate = useMemo(() => {
     if (!state.lastUpdate) return null;
     const seconds = Math.floor((Date.now() - state.lastUpdate.getTime()) / 1000);
@@ -362,7 +388,12 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
           </div>
 
           <div className="flex items-center gap-2">
-            {state.wsConnected ? (
+            {state.connectionFailed ? (
+              <>
+                <WifiOff className="w-4 h-4 text-[var(--ks-hud-red)]" />
+                <span className="text-xs text-[var(--ks-hud-red)]">Disconnected</span>
+              </>
+            ) : state.wsConnected ? (
               <>
                 <Wifi className="w-4 h-4 text-[var(--ks-hud-green)]" />
                 <span className="text-xs text-[var(--ks-hud-secondary)]">
@@ -371,31 +402,55 @@ export const LockControl: React.FC<LockControlProps> = React.memo(({ onLockChang
               </>
             ) : (
               <>
-                <WifiOff className="w-4 h-4 text-[var(--ks-hud-red)]" />
+                <WifiOff className="w-4 h-4 text-orange-500 animate-pulse" />
                 <span className="text-xs text-[var(--ks-hud-secondary)]">Reconnecting...</span>
               </>
             )}
           </div>
         </div>
 
-        {/* Loading */}
-        {state.isLoading && state.isLocked === null && (
-          <div className="flex items-center gap-2 text-[var(--ks-hud-secondary)]">
-            <Clock className="animate-spin" />
-            <span>Connecting to device...</span>
+        {/* Connection Failed State */}
+        {state.connectionFailed && (
+          <div className="flex flex-col items-center justify-center gap-4 py-8">
+            <div className="flex items-center gap-3">
+              <WifiOff className="w-8 h-8 text-[var(--ks-hud-red)]" />
+              <div>
+                <div className="text-[clamp(1.2rem,3vw,1.5rem)] font-bold text-[var(--ks-hud-red)]">
+                  Disconnected
+                </div>
+                <div className="text-[clamp(0.75rem,1.5vw,0.875rem)] text-[var(--ks-hud-secondary)]">
+                  Unable to connect to lock device
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleManualRetry}
+              className="flex items-center gap-2 px-6 py-2.5 bg-[var(--ks-hud-primary)] text-white rounded-lg hover:opacity-90 hover:scale-105 transition-all font-medium text-[clamp(0.875rem,2vw,1rem)]"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry Connection
+            </button>
           </div>
         )}
 
-        {/* Error */}
-        {state.error && (
+        {/* Loading */}
+        {state.isLoading && state.isLocked === null && !state.connectionFailed && (
+          <div className="flex items-center justify-center gap-2 text-[var(--ks-hud-secondary)] py-8">
+            <Clock className="animate-spin w-5 h-5" />
+            <span className="text-[clamp(0.875rem,2vw,1rem)]">Connecting to device...</span>
+          </div>
+        )}
+
+        {/* Error (only show if not connection failed) */}
+        {state.error && !state.connectionFailed && (
           <div className="flex items-center gap-2 text-[var(--ks-hud-red)] mb-2">
             <AlertTriangle className="w-4 h-4" />
             <span className="text-sm">{state.error}</span>
           </div>
         )}
 
-        {/* Main */}
-        {state.isLocked !== null && (
+        {/* Main Lock Control - only show when connected and not in failed state */}
+        {state.isLocked !== null && !state.connectionFailed && (
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-[clamp(1rem,3vw,1.5rem)]">
             {/* Toggle */}
             <div className="flex items-center gap-[clamp(0.75rem,3vw,1rem)]">
