@@ -27,6 +27,7 @@
 - MUST be large, feature-complete areas
 - CAN use base and composite components
 - MUST be domain-specific (coworking related)
+- MUST be placed in folders with same name as component
 - Examples: ServerStats, FloorPlan, BookingCalendar, ClientManager
 
 ### Layout Components (layouts/)
@@ -41,6 +42,25 @@
 - MUST be named after their route purpose
 - Examples: Dashboard, Bookings, Members, Settings
 
+## Folder Structure Rules
+
+### Section Folder Convention
+- Every section component must be in a folder with the same name
+- Structure: `src/ui/sections/[ComponentName]/[ComponentName].tsx`
+- Example: `src/ui/sections/ClientManager/ClientManager.tsx`
+
+### Local Splits (Non-Reusable)
+- Components that are not reusable across other sections go in the same folder
+- Examples:
+  - `src/ui/sections/ClientManager/ClientList.tsx`
+  - `src/ui/sections/ClientManager/ClientCard.tsx`
+  - `src/ui/sections/ClientManager/NewClientForm.tsx`
+
+### Reusable Splits
+- Components clearly reusable across multiple sections go to:
+  - `src/ui/base/` for basic elements
+  - `src/ui/composite/` for complex combinations
+
 ## Naming Conventions
 - **Base**: Hud[ComponentName] (e.g., HudButton, HudInput)
 - **Composite**: [Purpose]Card/[Purpose]Display (e.g., ClientCard, PricingDisplay)
@@ -49,6 +69,8 @@
 - **Pages**: [Route]Page or [Route] (e.g., Dashboard, Settings)
 
 ## Import Rules
+
+### Component Imports
 ```typescript
 // ✅ Base can import: Only React, hooks, utils
 import React from 'react';
@@ -69,3 +91,24 @@ import { AdminLayout } from '../layouts/AdminLayout';
 // ❌ NEVER import upward in hierarchy
 // Base cannot import composite/sections
 // Composite cannot import sections
+```
+
+### Type Imports
+```typescript
+// From utils
+import { ClientType } from '../types';
+
+// From UI components
+import { ClientType } from '../../types';
+
+// Reuse existing core types at src/types
+```
+
+### Icons (Lucide)
+```typescript
+// Safe dynamic rendering
+import * as Lucide from 'lucide-react';
+
+const IconComp = (Lucide as any)[name] || (Lucide as any)['Circle'];
+return <IconComp className="w-4 h-4" />;
+```
