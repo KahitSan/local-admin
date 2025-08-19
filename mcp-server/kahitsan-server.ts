@@ -13,15 +13,62 @@ import {
 import fs from "fs";
 import path from "path";
 
-// Fix: Use proper path resolution
-const DOCS_DIR = path.join(process.cwd(), "mcp-server");
+// Fix: Use proper path resolution - check multiple possible locations
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+function findDocsDir(): string {
+  const possiblePaths = [
+    process.cwd(), // Current directory (if running from mcp-server)
+    path.join(process.cwd(), "mcp-server"), // Subdirectory
+    path.join(process.cwd(), "..", "mcp-server"), // Parent directory
+    path.join(__dirname, "mcp-server"), // Relative to script
+    __dirname, // Script directory itself
+  ];
+
+  for (const dir of possiblePaths) {
+    // Check if this directory contains the expected files
+    const testFile = path.join(dir, "design-system.mcp.md");
+    if (fs.existsSync(testFile)) {
+      console.error(`Found docs directory at: ${dir}`);
+      return dir;
+    }
+  }
+
+  // Default to mcp-server subdirectory if not found
+  console.error(`Docs directory not found, using default: ${path.join(process.cwd(), "mcp-server")}`);
+  return path.join(process.cwd(), "mcp-server");
+}
+
+const DOCS_DIR = findDocsDir();
+
+// Similarly find project root
+function findProjectRoot(): string {
+  const possibleRoots = [
+    process.cwd(),
+    path.resolve(DOCS_DIR, ".."),
+    path.resolve(process.cwd(), ".."),
+  ];
+
+  for (const root of possibleRoots) {
+    if (fs.existsSync(path.join(root, "src"))) {
+      console.error(`Found project root at: ${root}`);
+      return root;
+    }
+  }
+
+  console.error(`Project root not found, using: ${process.cwd()}`);
+  return process.cwd();
+}
+
+const projectRoot = findProjectRoot();
 const UI_DIRS = {
-  base: { dir: path.join(process.cwd(), "src/ui/base"), category: "component-base" },
-  composite: { dir: path.join(process.cwd(), "src/ui/composite"), category: "component-composite" },
-  sections: { dir: path.join(process.cwd(), "src/ui/sections"), category: "component-section" },
-  layouts: { dir: path.join(process.cwd(), "src/layouts"), category: "layout" },
-  pages: { dir: path.join(process.cwd(), "src/pages"), category: "page" },
+  base: { dir: path.join(projectRoot, "src/ui/base"), category: "component-base" },
+  composite: { dir: path.join(projectRoot, "src/ui/composite"), category: "component-composite" },
+  sections: { dir: path.join(projectRoot, "src/ui/sections"), category: "component-section" },
+  layouts: { dir: path.join(projectRoot, "src/layouts"), category: "layout" },
+  pages: { dir: path.join(projectRoot, "src/pages"), category: "page" },
 };
 
 interface KahitSanResource {
@@ -39,20 +86,62 @@ interface KahitSanResource {
 }
 
 /**
- * Collects all KahitSan documentation resources from the docs and UI dirs.
+ * Creates default project structure documentation
  */
-function collectKahitSanDocs(): KahitSanResource[] {
-  const resources: KahitSanResource[] = [];
+function createDefaultProjectStructure(): string {
+  const defaultContent = `# Project Structure
 
-  // Fix: Better error handling and path resolution
-  try {
-    // Ensure docs directory exists
-    if (!fs.existsSync(DOCS_DIR)) {
-      console.error(`Creating MCP docs directory: ${DOCS_DIR}`);
-      try {
-        fs.mkdirSync(DOCS_DIR, { recursive: true });
-        
-        const basicDesignSystem = `# KahitSan HUD Design System
+## Overview
+This document tracks the project's component organization, documentation status, and potential issues.
+
+## Component Statistics
+- Total Files: 0
+- Documented: 0
+- Undocumented: 0
+
+## Components Audit
+
+### Undocumented Components
+*No audit data available yet. Run a manual audit to populate this section.*
+
+### Unused Components
+*No audit data available yet. Run a manual audit to populate this section.*
+
+### Duplicate Components
+*No audit data available yet. Run a manual audit to populate this section.*
+
+## Directory Structure
+\`\`\`
+src/
+├── ui/
+│   ├── base/       # Base UI components
+│   ├── composite/  # Composite components
+│   └── sections/   # Section components
+├── layouts/        # Layout components
+└── pages/          # Page components
+\`\`\`
+
+## Notes
+- This is an auto-generated file. Update with actual project audit results.
+- Run component audit tools to identify undocumented, unused, and duplicate components.
+`;
+  return defaultContent;
+}
+
+/**
+ * Ensures all required MCP documentation files exist
+ */
+function ensureMCPFiles() {
+  // Ensure docs directory exists
+  if (!fs.existsSync(DOCS_DIR)) {
+    console.error(`Creating MCP docs directory: ${DOCS_DIR}`);
+    fs.mkdirSync(DOCS_DIR, { recursive: true });
+  }
+
+  // Ensure design-system.mcp.md exists
+  const designSystemPath = path.join(DOCS_DIR, "design-system.mcp.md");
+  if (!fs.existsSync(designSystemPath)) {
+    const basicDesignSystem = `# KahitSan HUD Design System
 
 ## Core Design Philosophy
 - **CLI-Inspired**: Terminal/command-line aesthetic with digital typography
@@ -71,13 +160,28 @@ function collectKahitSanDocs(): KahitSanResource[] {
 --ks-hud-blue: #0080FF;           /* Info */
 \`\`\`
 `;
-        fs.writeFileSync(path.join(DOCS_DIR, "design-system.mcp.md"), basicDesignSystem);
-        console.error("Created basic design-system.mcp.md");
-      } catch (mkdirError) {
-        console.error("Failed to create docs directory:", mkdirError);
-        return resources; // Return empty array if we can't create the directory
-      }
-    }
+    fs.writeFileSync(designSystemPath, basicDesignSystem);
+    console.error("Created basic design-system.mcp.md");
+  }
+
+  // Ensure project-structure.mcp.md exists
+  const projectStructurePath = path.join(DOCS_DIR, "project-structure.mcp.md");
+  if (!fs.existsSync(projectStructurePath)) {
+    const defaultStructure = createDefaultProjectStructure();
+    fs.writeFileSync(projectStructurePath, defaultStructure);
+    console.error("Created default project-structure.mcp.md");
+  }
+}
+
+/**
+ * Collects all KahitSan documentation resources from the docs and UI dirs.
+ */
+function collectKahitSanDocs(): KahitSanResource[] {
+  const resources: KahitSanResource[] = [];
+
+  try {
+    // Ensure all required files exist
+    ensureMCPFiles();
 
     // Collect design system docs
     const designSystemFiles = [
@@ -127,7 +231,7 @@ function collectKahitSanDocs(): KahitSanResource[] {
     }
 
     // Scan UI directories for component docs
-    Object.entries(UI_DIRS).forEach(([dirName, { dir, category }]) => {
+    Object.entries(UI_DIRS).forEach(([, { dir, category }]) => {
       try {
         if (!fs.existsSync(dir)) {
           console.error(`UI directory does not exist: ${dir}`);
@@ -169,26 +273,75 @@ function collectKahitSanDocs(): KahitSanResource[] {
  */
 function readProjectStructure() {
   try {
-    const structureFile = path.join(DOCS_DIR, "project-structure.mcp.md");
+    // Ensure the file exists
+    ensureMCPFiles();
     
-    if (!fs.existsSync(structureFile)) {
-      throw new McpError(ErrorCode.NotFound, "project-structure.mcp.md not found in mcp-server directory");
-    }
-
+    const structureFile = path.join(DOCS_DIR, "project-structure.mcp.md");
     const content = fs.readFileSync(structureFile, "utf-8");
     return content;
   } catch (error) {
-    if (error instanceof McpError) {
-      throw error;
-    }
-    throw new McpError(ErrorCode.InternalError, `Failed to read project structure: ${error.message}`);
+    // If still fails after ensuring, return a message
+    console.error("Failed to read project structure:", error);
+    return createDefaultProjectStructure();
   }
+}
+
+/**
+ * Performs an actual project audit by scanning directories
+ */
+function performProjectAudit() {
+  const audit = {
+    totalFiles: 0,
+    undocumented: [] as string[],
+    unused: [] as string[],
+    duplicates: [] as { name: string; paths: string[] }[],
+    componentMap: new Map<string, string[]>()
+  };
+
+  // Scan all UI directories
+  Object.entries(UI_DIRS).forEach(([, { dir, category }]) => {
+    if (!fs.existsSync(dir)) return;
+
+    try {
+      fs.readdirSync(dir).forEach((item) => {
+        const itemPath = path.join(dir, item);
+        if (fs.statSync(itemPath).isDirectory()) {
+          audit.totalFiles++;
+          
+          // Check for documentation
+          const docsPath = path.join(itemPath, `${item}.docs.mcp.md`);
+          if (!fs.existsSync(docsPath)) {
+            audit.undocumented.push(`${category}/${item}`);
+          }
+          
+          // Track component names for duplicate detection
+          if (audit.componentMap.has(item)) {
+            audit.componentMap.get(item)!.push(`${category}/${item}`);
+          } else {
+            audit.componentMap.set(item, [`${category}/${item}`]);
+          }
+        }
+      });
+    } catch (error) {
+      console.error(`Error scanning ${dir}:`, error);
+    }
+  });
+
+  // Find duplicates
+  audit.componentMap.forEach((paths, name) => {
+    if (paths.length > 1) {
+      audit.duplicates.push({ name, paths });
+    }
+  });
+
+  return audit;
 }
 
 /**
  * Parses project structure markdown content to extract audit information.
  */
 function parseProjectStructure(content: string) {
+  // First, try to parse existing content
   const lines = content.split('\n');
   const result = {
     totalFiles: 0,
@@ -198,9 +351,8 @@ function parseProjectStructure(content: string) {
     structure: content
   };
 
-  // Extract file counts and issues from markdown content
-  // This is a simple parser - you may want to enhance based on your markdown format
   let inSection = '';
+  let hasData = false;
   
   for (const line of lines) {
     const trimmed = line.trim();
@@ -209,6 +361,7 @@ function parseProjectStructure(content: string) {
       const match = trimmed.match(/(\d+)/);
       if (match) {
         result.totalFiles = parseInt(match[1]);
+        hasData = true;
       }
     }
     
@@ -236,20 +389,35 @@ function parseProjectStructure(content: string) {
     if (trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•')) {
       const item = trimmed.substring(1).trim();
       
-      if (inSection === 'undocumented') {
-        result.undocumented.push(item);
-      } else if (inSection === 'unused') {
-        result.unused.push(item);
-      } else if (inSection === 'duplicates') {
-        // Parse duplicate format like "ComponentName: path1, path2"
-        const colonIndex = item.indexOf(':');
-        if (colonIndex > -1) {
-          const name = item.substring(0, colonIndex).trim();
-          const paths = item.substring(colonIndex + 1).split(',').map(p => p.trim());
-          result.duplicates.push({ name, paths });
+      if (item && item !== 'No audit data available yet. Run a manual audit to populate this section.') {
+        if (inSection === 'undocumented') {
+          result.undocumented.push(item);
+          hasData = true;
+        } else if (inSection === 'unused') {
+          result.unused.push(item);
+          hasData = true;
+        } else if (inSection === 'duplicates') {
+          // Parse duplicate format like "ComponentName: path1, path2"
+          const colonIndex = item.indexOf(':');
+          if (colonIndex > -1) {
+            const name = item.substring(0, colonIndex).trim();
+            const paths = item.substring(colonIndex + 1).split(',').map(p => p.trim());
+            result.duplicates.push({ name, paths });
+            hasData = true;
+          }
         }
       }
     }
+  }
+
+  // If no data found in the file, perform actual audit
+  if (!hasData || result.totalFiles === 0) {
+    console.error("No audit data found in project-structure.mcp.md, performing live audit...");
+    const liveAudit = performProjectAudit();
+    return {
+      ...liveAudit,
+      structure: content
+    };
   }
 
   return result;
@@ -260,7 +428,7 @@ class KahitSanMCPServer {
 
   constructor() {
     this.server = new Server(
-      { name: "kahitsan-admin-mcp", version: "2.1.0" },
+      { name: "kahitsan-admin-mcp", version: "2.3.0" },
       { capabilities: { resources: {}, tools: {} } }
     );
 
@@ -307,11 +475,11 @@ class KahitSanMCPServer {
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       try {
         const docs = collectKahitSanDocs();
-        const resourceName = request.params.uri.replace(/^kahitsan:\/\/[^\/]+\//, "");
+        const resourceName = request.params.uri.replace(/^kahitsan:\/\/[^/]+\//, "");
         const doc = docs.find((d) => d.name === resourceName);
 
         if (!doc) {
-          throw new McpError(ErrorCode.NotFound, `Resource not found: ${resourceName}`);
+          throw new McpError(ErrorCode.MethodNotFound, `Resource not found: ${resourceName}`);
         }
 
         return {
@@ -383,7 +551,7 @@ class KahitSanMCPServer {
           },
           {
             name: "project-audit",
-            description: "Audit the project for unused, undocumented, and duplicate components by reading project-structure.mcp.md.",
+            description: "Audit the project for unused, undocumented, and duplicate components. Reads from project-structure.mcp.md or performs live audit.",
             inputSchema: {
               type: "object",
               properties: {
@@ -463,11 +631,7 @@ export default ${componentName};
           const structureContent = readProjectStructure();
           const result = parseProjectStructure(structureContent);
 
-          return {
-            content: [
-              {
-                type: "text",
-                text: `📊 Project Audit Results (from project-structure.mcp.md):
+          const auditReport = `📊 Project Audit Results
 
 ## Summary
 - Total Files: ${result.totalFiles}
@@ -476,17 +640,24 @@ export default ${componentName};
 - Duplicates: ${result.duplicates.length}
 
 ## Undocumented Files
-${result.undocumented.length > 0 ? result.undocumented.map(f => `• ${f}`).join("\n") : "✅ None"}
+${result.undocumented.length > 0 ? result.undocumented.map(f => `• ${f}`).join("\n") : "✅ None found"}
 
 ## Unused Files
-${result.unused.length > 0 ? result.unused.map(f => `• ${f}`).join("\n") : "✅ None"}
+${result.unused.length > 0 ? result.unused.map(f => `• ${f}`).join("\n") : "✅ None found"}
 
 ## Duplicate Components
-${result.duplicates.length > 0 ? result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") : "✅ None"}
+${result.duplicates.length > 0 ? result.duplicates.map(d => `• ${d.name}: ${d.paths.join(", ")}`).join("\n") : "✅ None found"}
 
 ---
 *Audit data sourced from: mcp-server/project-structure.mcp.md*
-`
+*If this is a default file, update it with actual audit results or the tool will perform a live scan.*
+`;
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: auditReport
               }
             ]
           };
@@ -505,6 +676,9 @@ ${result.duplicates.length > 0 ? result.duplicates.map(d => `• ${d.name}: ${d.
 
   async run() {
     try {
+      // Ensure MCP files exist on startup
+      ensureMCPFiles();
+      
       const transport = new StdioServerTransport();
       
       // Add error handling for transport
@@ -514,7 +688,9 @@ ${result.duplicates.length > 0 ? result.duplicates.map(d => `• ${d.name}: ${d.
       };
       
       await this.server.connect(transport);
-      console.error("KahitSan MCP server running on stdio");
+      console.error("KahitSan MCP server v2.3.0 running on stdio");
+      console.error(`Docs directory: ${DOCS_DIR}`);
+      console.error(`Project root: ${projectRoot}`);
     } catch (error) {
       console.error("Failed to start MCP server:", error);
       process.exit(1);
